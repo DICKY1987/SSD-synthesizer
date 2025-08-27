@@ -1,0 +1,6 @@
+system_name: "HUEY_P Trading"
+version: "0.1.0"
+doc_id: "SSD-EXAMPLE"
+sources:
+  - path: "../templates/example_source_doc.md"
+    kind: "doc"

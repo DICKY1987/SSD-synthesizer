@@ -1,0 +1,208 @@
+<mxfile host="app.diagrams.net" modified="2025-08-16T16:10:00.000Z" agent="python" version="24.7.13" editor="drawio">
+  <diagram id="eco-cal-arch" name="Eco Cal → Signal System">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- ===== A: Data Acquisition ===== -->
+        <mxCell id="grpA" value="Data Acquisition" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="480" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="SCH" value="APScheduler&#10;(cron: Sun 12:00 CST)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="grpA">
+          <mxGeometry x="20" y="40" width="440" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="DL" value="Automated ForexFactory Downloader&#10;(Selenium + WebDriver Manager)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="grpA">
+          <mxGeometry x="20" y="100" width="440" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="WD" value="Watchdog (Downloads folder)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="grpA">
+          <mxGeometry x="20" y="170" width="440" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="VAL" value="File Validator&#10;(patterns • freshness • hash)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="grpA">
+          <mxGeometry x="20" y="230" width="440" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== B: Transformation Pipeline ===== -->
+        <mxCell id="grpB" value="Transformation Pipeline" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="40" width="420" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="PAR" value="CSV Parser (pandas)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="grpB">
+          <mxGeometry x="20" y="40" width="380" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="FIL" value="Impact Filter&#10;(High/Medium • exclude CHF/weekend)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="grpB">
+          <mxGeometry x="20" y="110" width="380" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="STD" value="Standardizer&#10;(date/time tz • country &amp; impact codes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="grpB">
+          <mxGeometry x="20" y="190" width="380" height="70" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== C: Enhancement Engine ===== -->
+        <mxCell id="grpC" value="Enhancement Engine" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="40" width="520" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="ANT" value="Anticipation Generator&#10;(1h • 2h • 4h before)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="grpC">
+          <mxGeometry x="20" y="40" width="480" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="EQT" value="Equity Market Opens&#10;Tokyo 21:00 • London 02:00 • New York 08:30 CST" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="grpC">
+          <mxGeometry x="20" y="120" width="480" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="MER" value="Chronological Merger &amp; Sort" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="grpC">
+          <mxGeometry x="20" y="210" width="480" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== D: Persistence (SQLite) ===== -->
+        <mxCell id="grpD" value="Persistence (SQLite)" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="40" width="460" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="DB1" value="calendar_events" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="grpD">
+          <mxGeometry x="20" y="40" width="420" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="DB2" value="trading_signals" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="grpD">
+          <mxGeometry x="20" y="120" width="420" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="DB3" value="system_status" style="shape=cylinder;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="grpD">
+          <mxGeometry x="20" y="200" width="420" height="70" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== E: Strategy & Trigger ===== -->
+        <mxCell id="grpE" value="Strategy &amp; Trigger" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="700" height="340" as="geometry"/>
+        </mxCell>
+        <mxCell id="MON" value="Event Monitor&#10;(minimum-gap • per-tag offsets)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="grpE">
+          <mxGeometry x="20" y="40" width="660" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="SID" value="StrategyIdGenerator&#10;(country + impact mapping)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="grpE">
+          <mxGeometry x="20" y="120" width="660" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="OSC" value="Performance Oscillator&#10;(0–100 score)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="grpE">
+          <mxGeometry x="20" y="190" width="660" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="PARM" value="Parameter Selector&#10;(Sets 1..4 risk tiers)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="grpE">
+          <mxGeometry x="20" y="260" width="660" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== F: Signal I/O ===== -->
+        <mxCell id="grpF" value="Signal I/O" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="420" width="640" height="340" as="geometry"/>
+        </mxCell>
+        <mxCell id="EXP" value="MT4 CSV Exporter&#10;(signals_out/ unique filenames)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#6fa8dc;" vertex="1" parent="grpF">
+          <mxGeometry x="20" y="40" width="600" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="IMP" value="Signal Importer (optional)&#10;(signals_in/)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#6fa8dc;" vertex="1" parent="grpF">
+          <mxGeometry x="20" y="120" width="600" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="MT4" value="MT4 / Expert Advisor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#6fa8dc;" vertex="1" parent="grpF">
+          <mxGeometry x="20" y="190" width="600" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== G: Operations & UI ===== -->
+        <mxCell id="grpG" value="Operations &amp; UI" style="swimlane;horizontal=1;rounded=1;fillColor=#f5f5f5;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="420" width="600" height="340" as="geometry"/>
+        </mxCell>
+        <mxCell id="API" value="FastAPI + WebSocket&#10;(Dashboard &amp; live status)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#93c47d;" vertex="1" parent="grpG">
+          <mxGeometry x="20" y="40" width="560" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="CFG" value="SystemConfig&#10;(YAML • ENV • JSON)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#93c47d;" vertex="1" parent="grpG">
+          <mxGeometry x="20" y="130" width="560" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="LOG" value="Logging / Audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#93c47d;" vertex="1" parent="grpG">
+          <mxGeometry x="20" y="210" width="560" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== Edges: Acquisition Flow ===== -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="SCH" target="DL">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="DL" target="VAL">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="WD" target="VAL">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== Pipeline Flow ===== -->
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="VAL" target="PAR">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="PAR" target="FIL">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="FIL" target="STD">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="STD" target="ANT">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="ANT" target="EQT">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="EQT" target="MER">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="MER" target="DB1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== Strategy Flow ===== -->
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="DB1" target="MON">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="MON" target="SID">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="SID" target="OSC">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="OSC" target="PARM">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="PARM" target="EXP">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;" edge="1" parent="1" source="EXP" target="MT4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e17" value="audit" style="edgeStyle=orthogonalEdgeStyle;dashed=1;rounded=1;endArrow=block;html=1;strokeColor=#9673a6;" edge="1" parent="1" source="EXP" target="DB2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== Ops/UI Connections ===== -->
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="API" target="DB1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="API" target="DB2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="API" target="MON">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== Config Wiring ===== -->
+        <mxCell id="e21" value="config" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="CFG" target="SCH">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e22" value="config" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="CFG" target="MON">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e23" value="config" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="CFG" target="ANT">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e24" value="config" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#93c47d;" edge="1" parent="1" source="CFG" target="EXP">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- ===== Logging Edges ===== -->
+        <mxCell id="e25" value="audit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#999999;" edge="1" parent="1" source="DL" target="LOG">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e26" value="audit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#999999;" edge="1" parent="1" source="API" target="LOG">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e27" value="audit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;html=1;strokeColor=#999999;" edge="1" parent="1" source="MON" target="LOG">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

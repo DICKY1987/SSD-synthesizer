@@ -1,0 +1,203 @@
+# GitHub Workflow: mql4_indicator_integration.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 17:54:08
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 17:54:08"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  purpose: "Standardize indicator usage, buffer access, and custom indicator integration"
+
+  built_in_indicators:
+    moving_averages:
+      simple: "iMA(symbol, timeframe, period, ma_shift, ma_method, applied_price, shift)"
+      exponential: "Use MA_METHOD_EMA in ma_method parameter"
+      weighted: "Use MA_METHOD_LWMA in ma_method parameter"
+      smoothed: "Use MA_METHOD_SMMA in ma_method parameter"
+
+    oscillators:
+      rsi: "iRSI(symbol, timeframe, period, applied_price, shift)"
+      stochastic: "iStochastic(symbol, timeframe, Kperiod, Dperiod, slowing, method, price_field, mode, shift)"
+      macd: "iMACD(symbol, timeframe, fast_ema, slow_ema, signal_period, applied_price, mode, shift)"
+
+    trend_indicators:
+      bollinger: "iBands(symbol, timeframe, period, deviation, bands_shift, applied_price, mode, shift)"
+      parabolic_sar: "iSAR(symbol, timeframe, step, maximum, shift)"
+      atr: "iATR(symbol, timeframe, period, shift)"
+
+  custom_indicator_integration:
+    declaration_pattern: "No handle needed for iCustom calls"
+
+    basic_usage: |
+      double l_custom_value_double = iCustom(
+        Symbol(),           // symbol
+        Period(),           // timeframe
+        "indicator_name",   // indicator file name
+        parameter1,         // first parameter
+        parameter2,         // second parameter
+        buffer_index,       // buffer index (0, 1, 2, etc.)
+        bar_shift          // bar shift (0=current, 1=previous)
+      );
+
+    validation: |
+      double l_indicator_value_double = iCustom(Symbol(), Period(), "MyIndicator", 14, 0, 1);
+
+      if(l_indicator_value_double == EMPTY_VALUE) {
+        Print("Error: Invalid indicator value");
+        return(false);
+      }
+
+      // Use the value
+      if(l_indicator_value_double > threshold) {
+        // Signal logic
+      }
+
+  indicator_buffer_access:
+    single_buffer: |
+      // Access buffer 0 (main buffer)
+      double l_signal_double = iCustom(Symbol(), Period(), "SignalIndicator", 0, 1);
+
+    multiple_buffers: |
+      // Access different buffers of the same indicator
+      double l_upper_line_double = iCustom(Symbol(), Period(), "BandIndicator", 20, 2.0, 0, 1); // Buffer 0
+      double l_lower_line_double = iCustom(Symbol(), Period(), "BandIndicator", 20, 2.0, 1, 1); // Buffer 1
+      double l_signal_double = iCustom(Symbol(), Period(), "BandIndicator", 20, 2.0, 2, 1);     // Buffer 2
+
+    array_access: |
+      // Get multiple values at once
+      double l_signal_array_double[5];
+      for(int i = 0; i < 5; i++) {
+        l_signal_array_double[i] = iCustom(Symbol(), Period(), "MyIndicator", 14, 0, i+1);
+        if(l_signal_array_double[i] == EMPTY_VALUE) {
+          Print("Invalid value at bar ", i+1);
+          return(false);
+        }
+      }
+
+  indicator_parameters:
+    parameter_passing: |
+      // Example with multiple parameters
+      double l_macd_main_double = iCustom(
+        Symbol(),           // symbol
+        Period(),           // timeframe  
+        "Custom_MACD",      // indicator name
+        12,                 // fast EMA period
+        26,                 // slow EMA period
+        9,                  // signal period
+        PRICE_CLOSE,        // applied price
+        0,                  // main line buffer
+        1                   // previous bar
+      );
+
+    string_parameters: |
+      // Passing string parameters
+      double l_value_double = iCustom(
+        Symbol(),
+        Period(),
+        "SymbolAnalyzer",
+        "EURUSD",           // string parameter
+        14,                 // integer parameter
+        0,                  // buffer
+        1                   // shift
+      );
+
+  validation_checks:
+    empty_value_check: |
+      double l_value_double = iCustom(...);
+      if(l_value_double == EMPTY_VALUE || l_value_double == 0.0) {
+        LogError("GetIndicatorValue", 0, "Invalid indicator value received");
+        return(EMPTY_VALUE);
+      }
+
+    array_bounds: |
+      int l_bars_count_int = iBars(Symbol(), Period());
+      if(bar_shift >= l_bars_count_int) {
+        Print("Error: Bar shift ", bar_shift, " exceeds available bars ", l_bars_count_int);
+        return(EMPTY_VALUE);
+      }
+
+    indicator_existence: |
+      // Check if custom indicator file exists
+      double l_test_double = iCustom(Symbol(), Period(), "indicator_name", 0, 0);
+      if(GetLastError() == 4061) { // ERR_FUNCTION_NOT_CONFIRMED
+        Print("Error: Custom indicator not found or not compiled");
+        return(false);
+      }
+
+  indicator_caching:
+    concept: "iCustom results are automatically cached by MT4"
+    best_practice: "Store frequently used values in variables"
+    example: |
+      // Cache indicator values at start of bar
+      static double s_rsi_current_double = 0.0;
+      static double s_rsi_previous_double = 0.0;
+
+      if(IsNewBar()) {
+        s_rsi_previous_double = s_rsi_current_double;
+        s_rsi_current_double = iRSI(Symbol(), Period(), 14, PRICE_CLOSE, 1);
+      }
+
+      // Use cached values for comparisons
+      if(s_rsi_current_double > 70 && s_rsi_previous_double <= 70) {
+        // RSI crossed above 70
+      }
+
+  multi_timeframe_indicators:
+    access_pattern: |
+      // Access indicator from different timeframes
+      double l_h1_rsi_double = iRSI(Symbol(), PERIOD_H1, 14, PRICE_CLOSE, 1);
+      double l_h4_rsi_double = iRSI(Symbol(), PERIOD_H4, 14, PRICE_CLOSE, 1);
+      double l_d1_rsi_double = iRSI(Symbol(), PERIOD_D1, 14, PRICE_CLOSE, 1);
+
+    synchronization: |
+      // Ensure data is available before use
+      if(iBars(Symbol(), PERIOD_H4) < 50) {
+        Print("Insufficient H4 bars for analysis");
+        return(false);
+      }
+
+  indicator_constants:
+    applied_price:
+      - "PRICE_CLOSE = 0"
+      - "PRICE_OPEN = 1"
+      - "PRICE_HIGH = 2"
+      - "PRICE_LOW = 3"
+      - "PRICE_MEDIAN = 4"
+      - "PRICE_TYPICAL = 5"
+      - "PRICE_WEIGHTED = 6"
+
+    ma_methods:
+      - "MODE_SMA = 0"  # Simple Moving Average
+      - "MODE_EMA = 1"  # Exponential Moving Average
+      - "MODE_SMMA = 2" # Smoothed Moving Average
+      - "MODE_LWMA = 3" # Linear Weighted Moving Average
+
+    special_values:
+      - "EMPTY_VALUE = 2147483647"
+      - "NULL = 0"
+      - "WHOLE_ARRAY = 2147483647"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

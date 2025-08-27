@@ -1,0 +1,1479 @@
+' ===================================================================
+' MODULE: signal_builder.bas
+' SUBSYSTEM: SIGNAL_ENGINE
+' PURPOSE: Signal creation and validation engine
+' DEPENDENCIES: StandardDataTypes.bas, EventBus.bas
+' AUTHOR: System Developer | VERSION: 1.0.0 | LAST MODIFIED: 2024-12-03
+' MQL4 COMPATIBLE: Yes (No MQL5-specific features)
+' ===================================================================
+Option Explicit
+
+' ═══════════════════════════════════════════════════════════════
+' MODULE CONFIGURATION SECTION
+' ═══════════════════════════════════════════════════════════════
+Private Const MODULE_NAME As String = "signal_builder"
+Private Const MODULE_VERSION As String = "1.0.0"
+Private Const SUBSYSTEM_NAME As String = "SIGNAL_ENGINE"
+
+' Signal creation configuration
+Private Const MAX_SIGNALS_PER_MINUTE As Long = 10
+Private Const MAX_PENDING_SIGNALS As Long = 100
+Private Const DEFAULT_SIGNAL_EXPIRY_MINUTES As Long = 30
+Private Const SIGNAL_VALIDATION_TIMEOUT_MS As Long = 5000
+
+' Quality control constants
+Private Const MIN_SIGNAL_QUALITY_SCORE As Long = 50
+Private Const EXCELLENT_QUALITY_THRESHOLD As Long = 85
+Private Const GOOD_QUALITY_THRESHOLD As Long = 70
+Private Const POOR_QUALITY_THRESHOLD As Long = 40
+
+' Risk management constants
+Private Const MIN_LOT_SIZE As Double = 0.01
+Private Const MAX_LOT_SIZE As Double = 10#
+Private Const MIN_SL_DISTANCE_PIPS As Double = 5#
+Private Const MAX_SL_DISTANCE_PIPS As Double = 500#
+Private Const MIN_TP_DISTANCE_PIPS As Double = 5#
+Private Const MAX_TP_DISTANCE_PIPS As Double = 1000#
+
+' Signal source priorities
+Private Const MANUAL_SIGNAL_PRIORITY As Long = 10
+Private Const CALENDAR_SIGNAL_PRIORITY As Long = 8
+Private Const PRICE_SIGNAL_PRIORITY As Long = 6
+Private Const SYSTEM_SIGNAL_PRIORITY As Long = 4
+
+' Validation tier levels
+Private Const VALIDATION_TIER_BASIC As Long = 1
+Private Const VALIDATION_TIER_ENHANCED As Long = 2
+Private Const VALIDATION_TIER_COMPREHENSIVE As Long = 3
+
+' ═══════════════════════════════════════════════════════════════
+' MODULE VARIABLES SECTION
+' ═══════════════════════════════════════════════════════════════
+Private m_isInitialized As Boolean
+Private m_currentStatus As ModuleStatus
+Private m_errorCount As Long
+Private m_lastError As StandardError
+
+' Signal creation tracking
+Private m_signalsCreatedToday As Long
+Private m_lastSignalTime As Date
+Private m_signalCreationRate As Double
+Private m_lastRateCalculation As Date
+
+' Quality control tracking
+Private m_totalSignalsCreated As Long
+Private m_validSignalsCreated As Long
+Private m_rejectedSignals As Long
+Private m_averageSignalQuality As Double
+
+' Signal validation statistics
+Private m_basicValidationCount As Long
+Private m_enhancedValidationCount As Long
+Private m_comprehensiveValidationCount As Long
+Private m_validationErrors As Long
+
+' Performance metrics
+Private m_averageCreationTime As Double
+Private m_averageValidationTime As Double
+Private m_creationTimeouts As Long
+Private m_validationTimeouts As Long
+
+' Signal processing arrays (MQL4 compatible)
+Private m_pendingSignals(1 To MAX_PENDING_SIGNALS) As StandardSignal
+Private m_pendingCount As Long
+
+' Signal template cache
+Private m_signalTemplates(1 To 20) As SignalTemplate
+Private m_templateCount As Long
+
+' ═══════════════════════════════════════════════════════════════
+' INTERNAL DATA STRUCTURES SECTION
+' ═══════════════════════════════════════════════════════════════
+
+' ─────────────────────────────────────────────────────────────
+' SignalTemplate - Reusable signal configuration templates
+' ─────────────────────────────────────────────────────────────
+Private Type SignalTemplate
+    TemplateName As String
+    TemplateType As String      ' MANUAL, CALENDAR, PRICE, SYSTEM
+    DefaultLotSize As Double
+    DefaultSLPips As Double
+    DefaultTPPips As Double
+    DefaultExpiryMinutes As Long
+    DefaultPriority As Long
+    RiskMultiplier As Double
+    QualityBonus As Long
+    IsActive As Boolean
+    CreatedTime As Date
+    UseCount As Long
+    SuccessRate As Double
+    Notes As String
+End Type
+
+' ─────────────────────────────────────────────────────────────
+' ValidationResult - Signal validation outcome
+' ─────────────────────────────────────────────────────────────
+Private Type ValidationResult
+    IsValid As Boolean
+    ValidationTier As Long
+    QualityScore As Long
+    QualityGrade As String
+    ErrorCount As Long
+    WarningCount As Long
+    ValidationTime As Double
+    ErrorMessages As String
+    WarningMessages As String
+    Recommendations As String
+    PassedChecks As String
+    FailedChecks As String
+End Type
+
+' ─────────────────────────────────────────────────────────────
+' SignalCreationRequest - Signal creation parameters
+' ─────────────────────────────────────────────────────────────
+Private Type SignalCreationRequest
+    RequestID As String
+    SourceType As String        ' MANUAL, CALENDAR, PRICE, TRIGGER
+    Symbol As String
+    OrderType As String
+    LotSize As Double
+    StopLoss As Double
+    TakeProfit As Double
+    ExpiryMinutes As Long
+    Priority As Long
+    Comment As String
+    StrategyID As String
+    ParameterSetID As String
+    MarketCondition As String
+    QualityHint As Long
+    RequestTime As Date
+    RequesterModule As String
+    ValidationLevel As Long
+    TemplateID As String
+    CustomParameters As String
+End Type
+
+' ═══════════════════════════════════════════════════════════════
+' STANDARD INTERFACE SECTION (MANDATORY - ALL MODULES)
+' ═══════════════════════════════════════════════════════════════
+
+Public Function Initialize() As Boolean
+    LOG_ENTER "Initialize"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    Initialize = False
+    m_currentStatus = INITIALIZING
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Signal Builder Module Initialization                        │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Validate dependencies
+    If Not ValidateModuleDependencies() Then
+        LOG_CRITICAL "Initialize", "Module dependencies not met"
+        Exit Function
+    End If
+    
+    ' Initialize signal creation tracking
+    ClearPendingSignals
+    
+    ' Load signal templates
+    LoadSignalTemplates
+    
+    ' Initialize validation system
+    InitializeValidationSystem
+    
+    ' Reset performance counters
+    ResetPerformanceCounters
+    
+    ' Validate SignalQueue worksheet
+    If Not ValidateSignalQueueWorksheet() Then
+        LOG_CRITICAL "Initialize", "SignalQueue worksheet validation failed"
+        Exit Function
+    End If
+    
+    ' Set initial state
+    m_isInitialized = True
+    m_currentStatus = ACTIVE
+    m_errorCount = 0
+    m_lastSignalTime = Now
+    m_lastRateCalculation = Now
+    
+    Initialize = True
+    PERF_END "Initialize", l_startTime
+    LOG_EXIT "Initialize", "SUCCESS - Signal builder ready"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "Initialize"
+    m_currentStatus = FATAL_ERROR
+    Initialize = False
+    PERF_END "Initialize", l_startTime
+    LOG_EXIT "Initialize", "FAILED"
+End Function
+
+Public Function Shutdown() As Boolean
+    LOG_ENTER "Shutdown"
+    On Error GoTo ErrorHandler
+    
+    Shutdown = False
+    m_currentStatus = SHUTTING_DOWN
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Graceful Shutdown Process                                   │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Process any remaining pending signals
+    ProcessRemainingPendingSignals
+    
+    ' Save signal creation statistics
+    SaveSignalStatistics
+    
+    ' Save signal templates with usage statistics
+    SaveSignalTemplates
+    
+    ' Clear tracking arrays
+    ClearPendingSignals
+    
+    ' Mark as shutdown
+    m_isInitialized = False
+    m_currentStatus = SHUTDOWN
+    
+    Shutdown = True
+    LOG_EXIT "Shutdown", "SUCCESS"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "Shutdown"
+    m_currentStatus = ERROR_STATE
+    Shutdown = False
+    LOG_EXIT "Shutdown", "FAILED"
+End Function
+
+Public Function GetModuleStatus() As ModuleStatus
+    GetModuleStatus = m_currentStatus
+End Function
+
+Public Function GetModuleName() As String
+    GetModuleName = MODULE_NAME
+End Function
+
+Public Function GetModuleVersion() As String
+    GetModuleVersion = MODULE_VERSION
+End Function
+
+Public Function ProcessHealthCheck() As HealthStatus
+    Dim health As HealthStatus
+    health.ComponentName = MODULE_NAME
+    health.Status = m_currentStatus
+    health.LastUpdate = Now
+    health.ErrorCount = m_errorCount
+    health.Performance = CalculatePerformanceScore()
+    health.MemoryUsage = CalculateMemoryUsage()
+    health.HealthScore = CalculateHealthScore()
+    health.LastError = m_lastError.Message
+    health.Recovery = "AUTO"
+    health.Notes = "Created: " & m_totalSignalsCreated & ", Valid: " & m_validSignalsCreated & ", Avg quality: " & Format(m_averageSignalQuality, "0.0")
+    ProcessHealthCheck = health
+End Function
+
+Public Function HandleError(errorInfo As StandardError) As Boolean
+    On Error Resume Next
+    m_errorCount = m_errorCount + 1
+    m_lastError = errorInfo
+    
+    ' Escalate status based on error count and severity
+    If errorInfo.Severity = "CRITICAL" Then
+        m_currentStatus = ERROR_STATE
+    ElseIf m_errorCount > 5 And m_currentStatus = ACTIVE Then
+        m_currentStatus = DEGRADED
+    ElseIf m_errorCount > 20 Then
+        m_currentStatus = ERROR_STATE
+    End If
+    
+    HandleError = True
+End Function
+
+' ═══════════════════════════════════════════════════════════════
+' CORE FUNCTIONALITY SECTION
+' ═══════════════════════════════════════════════════════════════
+
+' ─────────────────────────────────────────────────────────────
+' CreateSignal - Main signal creation function
+' ─────────────────────────────────────────────────────────────
+Public Function CreateSignal(trigger As String, parameters As String) As StandardSignal
+    LOG_ENTER "CreateSignal"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    Dim emptySignal As StandardSignal
+    CreateSignal = emptySignal
+    
+    If Not m_isInitialized Then
+        LOG_WARN "CreateSignal", "Module not initialized"
+        Exit Function
+    End If
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Signal Creation Process                                     │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Check rate limiting
+    If Not CheckSignalCreationRate() Then
+        LOG_WARN "CreateSignal", "Signal creation rate limit exceeded"
+        Exit Function
+    End If
+    
+    ' Parse creation request
+    Dim request As SignalCreationRequest
+    If Not ParseSignalCreationRequest(trigger, parameters, request) Then
+        LOG_WARN "CreateSignal", "Failed to parse signal creation request"
+        m_rejectedSignals = m_rejectedSignals + 1
+        Exit Function
+    End If
+    
+    ' Create signal from request
+    Dim signal As StandardSignal
+    If Not BuildSignalFromRequest(request, signal) Then
+        LOG_WARN "CreateSignal", "Failed to build signal from request"
+        m_rejectedSignals = m_rejectedSignals + 1
+        Exit Function
+    End If
+    
+    ' Validate signal
+    Dim validationResult As ValidationResult
+    validationResult = ValidateSignal(signal)
+    
+    If Not validationResult.IsValid Then
+        LOG_WARN "CreateSignal", "Signal validation failed: " & validationResult.ErrorMessages
+        m_rejectedSignals = m_rejectedSignals + 1
+        Exit Function
+    End If
+    
+    ' Apply validation results to signal
+    ApplyValidationResults signal, validationResult
+    
+    ' Queue signal for processing
+    If QueueSignal(signal) Then
+        ' Update statistics
+        m_totalSignalsCreated = m_totalSignalsCreated + 1
+        m_validSignalsCreated = m_validSignalsCreated + 1
+        m_signalsCreatedToday = m_signalsCreatedToday + 1
+        m_lastSignalTime = Now
+        
+        ' Update average quality
+        UpdateAverageQuality signal.QualityScore
+        
+        ' Publish signal creation event
+        PublishSignalCreatedEvent signal
+        
+        CreateSignal = signal
+        LOG_EXIT "CreateSignal", "SUCCESS - Signal created: " & signal.SignalID
+    Else
+        LOG_WARN "CreateSignal", "Failed to queue signal for processing"
+        m_rejectedSignals = m_rejectedSignals + 1
+    End If
+    
+    PERF_END "CreateSignal", l_startTime
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "CreateSignal"
+    CreateSignal = emptySignal
+    m_rejectedSignals = m_rejectedSignals + 1
+    PERF_END "CreateSignal", l_startTime
+    LOG_EXIT "CreateSignal", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' ValidateSignal - Comprehensive signal validation
+' ─────────────────────────────────────────────────────────────
+Public Function ValidateSignal(signal As StandardSignal) As Boolean
+    LOG_ENTER "ValidateSignal"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    ValidateSignal = False
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Comprehensive Signal Validation Process                    │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    Dim validationResult As ValidationResult
+    validationResult = PerformSignalValidation(signal, VALIDATION_TIER_ENHANCED)
+    
+    If validationResult.IsValid Then
+        ' Apply validation results
+        signal.ValidationTier = validationResult.ValidationTier
+        signal.QualityScore = validationResult.QualityScore
+        
+        ' Update validation statistics
+        Select Case validationResult.ValidationTier
+            Case VALIDATION_TIER_BASIC: m_basicValidationCount = m_basicValidationCount + 1
+            Case VALIDATION_TIER_ENHANCED: m_enhancedValidationCount = m_enhancedValidationCount + 1
+            Case VALIDATION_TIER_COMPREHENSIVE: m_comprehensiveValidationCount = m_comprehensiveValidationCount + 1
+        End Select
+        
+        ValidateSignal = True
+        LOG_EXIT "ValidateSignal", "VALID - Quality: " & validationResult.QualityScore & " (Tier " & validationResult.ValidationTier & ")"
+    Else
+        m_validationErrors = m_validationErrors + 1
+        LOG_WARN "ValidateSignal", "INVALID - " & validationResult.ErrorMessages
+        LOG_EXIT "ValidateSignal", "INVALID"
+    End If
+    
+    PERF_END "ValidateSignal", l_startTime
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "ValidateSignal"
+    ValidateSignal = False
+    m_validationErrors = m_validationErrors + 1
+    PERF_END "ValidateSignal", l_startTime
+    LOG_EXIT "ValidateSignal", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' QueueSignal - Add signal to processing queue
+' ─────────────────────────────────────────────────────────────
+Public Function QueueSignal(signal As StandardSignal) As Boolean
+    LOG_ENTER "QueueSignal"
+    On Error GoTo ErrorHandler
+    
+    QueueSignal = False
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Signal Queuing Process                                      │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Write signal to SignalQueue worksheet
+    If WriteSignalToQueue(signal) Then
+        ' Add to pending signals array for tracking
+        AddToPendingSignals signal
+        
+        QueueSignal = True
+        LOG_EXIT "QueueSignal", "SUCCESS - Signal queued: " & signal.SignalID
+    Else
+        LOG_WARN "QueueSignal", "Failed to write signal to queue: " & signal.SignalID
+    End If
+    
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "QueueSignal"
+    QueueSignal = False
+    LOG_EXIT "QueueSignal", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' ProcessManualSignal - Process signal from manual input
+' ─────────────────────────────────────────────────────────────
+Public Function ProcessManualSignal(signal As StandardSignal) As Boolean
+    LOG_ENTER "ProcessManualSignal"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    ProcessManualSignal = False
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Manual Signal Processing                                    │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Apply manual signal template if available
+    ApplySignalTemplate signal, "MANUAL_DEFAULT"
+    
+    ' Set manual signal properties
+    signal.SourceType = "MANUAL"
+    signal.Priority = MANUAL_SIGNAL_PRIORITY
+    signal.QualityScore = signal.QualityScore + 10 ' Manual signals get quality bonus
+    
+    ' Enhanced validation for manual signals
+    Dim validationResult As ValidationResult
+    validationResult = PerformSignalValidation(signal, VALIDATION_TIER_COMPREHENSIVE)
+    
+    If validationResult.IsValid Then
+        ' Apply validation results
+        ApplyValidationResults signal, validationResult
+        
+        ' Queue the signal
+        If QueueSignal(signal) Then
+            ProcessManualSignal = True
+            LOG_EXIT "ProcessManualSignal", "SUCCESS - Manual signal processed: " & signal.SignalID
+        Else
+            LOG_WARN "ProcessManualSignal", "Failed to queue manual signal"
+        End If
+    Else
+        LOG_WARN "ProcessManualSignal", "Manual signal validation failed: " & validationResult.ErrorMessages
+    End If
+    
+    PERF_END "ProcessManualSignal", l_startTime
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "ProcessManualSignal"
+    ProcessManualSignal = False
+    PERF_END "ProcessManualSignal", l_startTime
+    LOG_EXIT "ProcessManualSignal", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' ProcessCalendarSignal - Process signal from economic calendar
+' ─────────────────────────────────────────────────────────────
+Public Function ProcessCalendarSignal(eventData As String) As Boolean
+    LOG_ENTER "ProcessCalendarSignal"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    ProcessCalendarSignal = False
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Calendar Signal Processing                                  │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Parse calendar event data
+    Dim request As SignalCreationRequest
+    If Not ParseCalendarEventData(eventData, request) Then
+        LOG_WARN "ProcessCalendarSignal", "Failed to parse calendar event data"
+        Exit Function
+    End If
+    
+    ' Build signal from calendar event
+    Dim signal As StandardSignal
+    If Not BuildSignalFromRequest(request, signal) Then
+        LOG_WARN "ProcessCalendarSignal", "Failed to build signal from calendar event"
+        Exit Function
+    End If
+    
+    ' Apply calendar signal template
+    ApplySignalTemplate signal, "CALENDAR_DEFAULT"
+    
+    ' Set calendar signal properties
+    signal.SourceType = "CALENDAR"
+    signal.Priority = CALENDAR_SIGNAL_PRIORITY
+    
+    ' Standard validation for calendar signals
+    Dim validationResult As ValidationResult
+    validationResult = PerformSignalValidation(signal, VALIDATION_TIER_ENHANCED)
+    
+    If validationResult.IsValid Then
+        ApplyValidationResults signal, validationResult
+        
+        If QueueSignal(signal) Then
+            ProcessCalendarSignal = True
+            LOG_EXIT "ProcessCalendarSignal", "SUCCESS - Calendar signal processed: " & signal.SignalID
+        End If
+    Else
+        LOG_WARN "ProcessCalendarSignal", "Calendar signal validation failed: " & validationResult.ErrorMessages
+    End If
+    
+    PERF_END "ProcessCalendarSignal", l_startTime
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "ProcessCalendarSignal"
+    ProcessCalendarSignal = False
+    PERF_END "ProcessCalendarSignal", l_startTime
+    LOG_EXIT "ProcessCalendarSignal", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' ProcessPriceSignal - Process signal from price trigger
+' ─────────────────────────────────────────────────────────────
+Public Function ProcessPriceSignal(triggerData As String) As Boolean
+    LOG_ENTER "ProcessPriceSignal"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    ProcessPriceSignal = False
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Price Signal Processing                                     │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Parse price trigger data
+    Dim request As SignalCreationRequest
+    If Not ParsePriceTriggerData(triggerData, request) Then
+        LOG_WARN "ProcessPriceSignal", "Failed to parse price trigger data"
+        Exit Function
+    End If
+    
+    ' Build signal from price trigger
+    Dim signal As StandardSignal
+    If Not BuildSignalFromRequest(request, signal) Then
+        LOG_WARN "ProcessPriceSignal", "Failed to build signal from price trigger"
+        Exit Function
+    End If
+    
+    ' Apply price signal template
+    ApplySignalTemplate signal, "PRICE_DEFAULT"
+    
+    ' Set price signal properties
+    signal.SourceType = "PRICE"
+    signal.Priority = PRICE_SIGNAL_PRIORITY
+    
+    ' Basic validation for price signals (speed is important)
+    Dim validationResult As ValidationResult
+    validationResult = PerformSignalValidation(signal, VALIDATION_TIER_BASIC)
+    
+    If validationResult.IsValid Then
+        ApplyValidationResults signal, validationResult
+        
+        If QueueSignal(signal) Then
+            ProcessPriceSignal = True
+            LOG_EXIT "ProcessPriceSignal", "SUCCESS - Price signal processed: " & signal.SignalID
+        End If
+    Else
+        LOG_WARN "ProcessPriceSignal", "Price signal validation failed: " & validationResult.ErrorMessages
+    End If
+    
+    PERF_END "ProcessPriceSignal", l_startTime
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "ProcessPriceSignal"
+    ProcessPriceSignal = False
+    PERF_END "ProcessPriceSignal", l_startTime
+    LOG_EXIT "ProcessPriceSignal", "FAILED"
+End Function
+
+' ═══════════════════════════════════════════════════════════════
+' PRIVATE HELPER SECTION
+' ═══════════════════════════════════════════════════════════════
+
+' ─────────────────────────────────────────────────────────────
+' Signal Creation Helper Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ParseSignalCreationRequest(trigger As String, parameters As String, ByRef request As SignalCreationRequest) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ParseSignalCreationRequest = False
+    
+    ' Initialize request
+    request.RequestID = GenerateSignalID("REQ")
+    request.RequestTime = Now
+    request.RequesterModule = "signal_builder"
+    request.ValidationLevel = VALIDATION_TIER_ENHANCED
+    
+    ' Parse trigger type
+    request.SourceType = ExtractSourceTypeFromTrigger(trigger)
+    
+    ' Parse parameters string (simplified format: Symbol,OrderType,LotSize,SL,TP)
+    Dim params() As String
+    params = Split(parameters, ",")
+    
+    If UBound(params) >= 4 Then
+        request.Symbol = Trim(params(0))
+        request.OrderType = UCase(Trim(params(1)))
+        request.LotSize = Val(params(2))
+        request.StopLoss = Val(params(3))
+        request.TakeProfit = Val(params(4))
+        
+        ' Optional parameters
+        If UBound(params) >= 5 Then request.ExpiryMinutes = Val(params(5))
+        If UBound(params) >= 6 Then request.Priority = Val(params(6))
+        If UBound(params) >= 7 Then request.Comment = Trim(params(7))
+        
+        ' Set defaults for missing parameters
+        If request.ExpiryMinutes <= 0 Then request.ExpiryMinutes = DEFAULT_SIGNAL_EXPIRY_MINUTES
+        If request.Priority <= 0 Then request.Priority = GetDefaultPriorityForSource(request.SourceType)
+        
+        ParseSignalCreationRequest = True
+    End If
+    
+    Exit Function
+    
+ErrorHandler:
+    ParseSignalCreationRequest = False
+End Function
+
+Private Function BuildSignalFromRequest(request As SignalCreationRequest, ByRef signal As StandardSignal) As Boolean
+    On Error GoTo ErrorHandler
+    
+    BuildSignalFromRequest = False
+    
+    ' Initialize empty signal
+    signal = CreateEmptySignal()
+    
+    ' Populate signal from request
+    With signal
+        .SignalID = GenerateSignalID(GetSignalPrefixForSource(request.SourceType))
+        .CompositeKey = request.Symbol & "_" & request.OrderType & "_" & Format(Now, "yyyymmddhhnnss")
+        .Symbol = request.Symbol
+        .OrderType = request.OrderType
+        .LotSize = request.LotSize
+        .StopLoss = request.StopLoss
+        .TakeProfit = request.TakeProfit
+        .CreateTime = Now
+        .ExpireTime = DateAdd("n", request.ExpiryMinutes, Now)
+        .SourceType = request.SourceType
+        .Priority = request.Priority
+        .Status = "CREATED"
+        .ValidationTier = 0
+        .ErrorCount = 0
+        .OrderComment = request.Comment
+        .QualityScore = CalculateInitialQualityScore(request)
+        .MarketCondition = request.MarketCondition
+        .StrategyID = Val(request.StrategyID)
+        .ParameterSetID = Val(request.ParameterSetID)
+    End With
+    
+    BuildSignalFromRequest = True
+    Exit Function
+    
+ErrorHandler:
+    BuildSignalFromRequest = False
+End Function
+
+Private Function PerformSignalValidation(signal As StandardSignal, validationTier As Long) As ValidationResult
+    Dim result As ValidationResult
+    result.IsValid = True
+    result.ValidationTier = validationTier
+    result.QualityScore = signal.QualityScore
+    result.ErrorCount = 0
+    result.WarningCount = 0
+    result.ValidationTime = Timer
+    
+    Dim l_startTime As Double
+    l_startTime = Timer
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Multi-Tier Validation Process                               │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Tier 1: Basic validation (always performed)
+    PerformBasicValidation signal, result
+    
+    ' Tier 2: Enhanced validation
+    If validationTier >= VALIDATION_TIER_ENHANCED And result.IsValid Then
+        PerformEnhancedValidation signal, result
+    End If
+    
+    ' Tier 3: Comprehensive validation
+    If validationTier >= VALIDATION_TIER_COMPREHENSIVE And result.IsValid Then
+        PerformComprehensiveValidation signal, result
+    End If
+    
+    ' Calculate final quality score
+    result.QualityScore = CalculateFinalQualityScore(signal, result)
+    result.QualityGrade = ClassifyQualityGrade(result.QualityScore)
+    
+    ' Record validation time
+    result.ValidationTime = (Timer - l_startTime) * 1000
+    
+    PerformSignalValidation = result
+End Function
+
+Private Sub PerformBasicValidation(signal As StandardSignal, ByRef result As ValidationResult)
+    ' Basic validation checks
+    
+    ' Check required fields
+    If Len(signal.SignalID) = 0 Then
+        AddValidationError result, "Missing SignalID"
+    End If
+    
+    If Len(signal.Symbol) <> 6 Then
+        AddValidationError result, "Invalid symbol format (must be 6 characters)"
+    End If
+    
+    If signal.OrderType <> "BUY" And signal.OrderType <> "SELL" Then
+        AddValidationError result, "Invalid order type (must be BUY or SELL)"
+    End If
+    
+    ' Validate lot size
+    If signal.LotSize < MIN_LOT_SIZE Or signal.LotSize > MAX_LOT_SIZE Then
+        AddValidationError result, "Lot size out of range (" & MIN_LOT_SIZE & " - " & MAX_LOT_SIZE & ")"
+    End If
+    
+    ' Validate prices
+    If signal.StopLoss <= 0 Then
+        AddValidationError result, "Stop loss must be positive"
+    End If
+    
+    If signal.TakeProfit <= 0 Then
+        AddValidationError result, "Take profit must be positive"
+    End If
+    
+    ' Validate timing
+    If signal.CreateTime <= 0 Then
+        AddValidationError result, "Invalid create time"
+    End If
+    
+    If signal.ExpireTime <= signal.CreateTime Then
+        AddValidationError result, "Expire time must be after create time"
+    End If
+    
+    ' Check SL/TP relationship
+    If signal.OrderType = "BUY" Then
+        If signal.StopLoss >= signal.TakeProfit Then
+            AddValidationError result, "For BUY orders, Stop Loss must be less than Take Profit"
+        End If
+    Else ' SELL
+        If signal.StopLoss <= signal.TakeProfit Then
+            AddValidationError result, "For SELL orders, Stop Loss must be greater than Take Profit"
+        End If
+    End If
+    
+    result.PassedChecks = result.PassedChecks & "BASIC_STRUCTURE,PRICE_LOGIC,"
+End Sub
+
+Private Sub PerformEnhancedValidation(signal As StandardSignal, ByRef result As ValidationResult)
+    ' Enhanced validation checks
+    
+    ' Validate SL/TP distances (simplified - would use current market price)
+    Dim estimatedPrice As Double
+    estimatedPrice = (signal.StopLoss + signal.TakeProfit) / 2 ' Simplified estimate
+    
+    Dim slDistance As Double, tpDistance As Double
+    
+    If signal.OrderType = "BUY" Then
+        slDistance = (estimatedPrice - signal.StopLoss) * 10000 ' Convert to pips (simplified)
+        tpDistance = (signal.TakeProfit - estimatedPrice) * 10000
+    Else
+        slDistance = (signal.StopLoss - estimatedPrice) * 10000
+        tpDistance = (estimatedPrice - signal.TakeProfit) * 10000
+    End If
+    
+    If slDistance < MIN_SL_DISTANCE_PIPS Then
+        AddValidationWarning result, "Stop loss distance very small (" & Format(slDistance, "0.0") & " pips)"
+    End If
+    
+    If slDistance > MAX_SL_DISTANCE_PIPS Then
+        AddValidationError result, "Stop loss distance too large (" & Format(slDistance, "0.0") & " pips)"
+    End If
+    
+    If tpDistance < MIN_TP_DISTANCE_PIPS Then
+        AddValidationWarning result, "Take profit distance very small (" & Format(tpDistance, "0.0") & " pips)"
+    End If
+    
+    ' Risk/reward ratio check
+    If tpDistance > 0 And slDistance > 0 Then
+        Dim riskReward As Double
+        riskReward = tpDistance / slDistance
+        
+        If riskReward < 1 Then
+            AddValidationWarning result, "Risk/reward ratio less than 1:1 (" & Format(riskReward, "0.00") & ")"
+        End If
+        
+        If riskReward > 5 Then
+            AddValidationWarning result, "Risk/reward ratio very high (" & Format(riskReward, "0.00") & ")"
+        End If
+    End If
+    
+    ' Priority validation
+    If signal.Priority < 1 Or signal.Priority > 10 Then
+        AddValidationWarning result, "Priority out of normal range (1-10)"
+    End If
+    
+    ' Expiry validation
+    Dim expiryMinutes As Long
+    expiryMinutes = DateDiff("n", signal.CreateTime, signal.ExpireTime)
+    
+    If expiryMinutes < 5 Then
+        AddValidationWarning result, "Very short expiry time (" & expiryMinutes & " minutes)"
+    End If
+    
+    If expiryMinutes > 1440 Then ' 24 hours
+        AddValidationWarning result, "Very long expiry time (" & expiryMinutes & " minutes)"
+    End If
+    
+    result.PassedChecks = result.PassedChecks & "DISTANCE_CHECK,RISK_REWARD,TIMING,"
+End Sub
+
+Private Sub PerformComprehensiveValidation(signal As StandardSignal, ByRef result As ValidationResult)
+    ' Comprehensive validation checks
+    
+    ' Market hours validation (simplified)
+    Dim currentHour As Long
+    currentHour = Hour(Now)
+    
+    If currentHour < 6 Or currentHour > 22 Then
+        AddValidationWarning result, "Signal created outside typical trading hours"
+    End If
+    
+    ' Symbol validation (would check against supported symbols)
+    Dim majorPairs As String
+    majorPairs = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD"
+    
+    If InStr(majorPairs, signal.Symbol) = 0 Then
+        AddValidationWarning result, "Non-major currency pair"
+        result.QualityScore = result.QualityScore - 5
+    End If
+    
+    ' Quality score validation
+    If signal.QualityScore < MIN_SIGNAL_QUALITY_SCORE Then
+        AddValidationError result, "Signal quality score below minimum threshold"
+    End If
+    
+    ' Lot size vs account balance validation (simplified)
+    Dim accountBalance As Double
+    accountBalance = 10000 ' Would get from account data
+    
+    Dim positionValue As Double
+    positionValue = signal.LotSize * 100000 ' Standard lot size
+    
+    If positionValue > (accountBalance * 0.1) Then
+        AddValidationWarning result, "Position size large relative to account balance"
+    End If
+    
+    ' Source type validation
+    Select Case signal.SourceType
+        Case "MANUAL", "CALENDAR", "PRICE", "SYSTEM"
+            ' Valid sources
+        Case Else
+            AddValidationError result, "Invalid source type: " & signal.SourceType
+    End Select
+    
+    result.PassedChecks = result.PassedChecks & "MARKET_HOURS,SYMBOL_CHECK,QUALITY_CHECK,POSITION_SIZE,"
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Validation Helper Functions
+' ─────────────────────────────────────────────────────────────
+Private Sub AddValidationError(ByRef result As ValidationResult, errorMessage As String)
+    result.IsValid = False
+    result.ErrorCount = result.ErrorCount + 1
+    result.ErrorMessages = result.ErrorMessages & errorMessage & "; "
+    result.FailedChecks = result.FailedChecks & "ERROR,"
+End Sub
+
+Private Sub AddValidationWarning(ByRef result As ValidationResult, warningMessage As String)
+    result.WarningCount = result.WarningCount + 1
+    result.WarningMessages = result.WarningMessages & warningMessage & "; "
+    ' Warnings don't invalidate the signal but may reduce quality score
+    result.QualityScore = result.QualityScore - 2
+End Sub
+
+Private Sub ApplyValidationResults(ByRef signal As StandardSignal, validationResult As ValidationResult)
+    signal.ValidationTier = validationResult.ValidationTier
+    signal.QualityScore = validationResult.QualityScore
+    signal.ErrorCount = validationResult.ErrorCount
+End Sub
+
+Private Function CalculateInitialQualityScore(request As SignalCreationRequest) As Long
+    Dim score As Long
+    score = 70 ' Base score
+    
+    ' Source type bonus
+    Select Case request.SourceType
+        Case "MANUAL": score = score + 15
+        Case "CALENDAR": score = score + 10
+        Case "PRICE": score = score + 5
+        Case "SYSTEM": score = score + 0
+    End Select
+    
+    ' Priority bonus
+    If request.Priority >= 8 Then score = score + 5
+    
+    ' Quality hint
+    If request.QualityHint > 0 Then
+        score = score + (request.QualityHint - 50) / 10 ' Normalize to ±5 points
+    End If
+    
+    ' Ensure within bounds
+    If score < 0 Then score = 0
+    If score > 100 Then score = 100
+    
+    CalculateInitialQualityScore = score
+End Function
+
+Private Function CalculateFinalQualityScore(signal As StandardSignal, validationResult As ValidationResult) As Long
+    Dim score As Long
+    score = signal.QualityScore
+    
+    ' Validation tier bonus
+    Select Case validationResult.ValidationTier
+        Case VALIDATION_TIER_BASIC: score = score + 0
+        Case VALIDATION_TIER_ENHANCED: score = score + 5
+        Case VALIDATION_TIER_COMPREHENSIVE: score = score + 10
+    End Select
+    
+    ' Error penalty
+    score = score - (validationResult.ErrorCount * 10)
+    
+    ' Warning penalty (already applied in validation)
+    ' score = score - (validationResult.WarningCount * 2)
+    
+    ' Validation success bonus
+    If validationResult.IsValid Then
+        score = score + 5
+    End If
+    
+    ' Ensure within bounds
+    If score < 0 Then score = 0
+    If score > 100 Then score = 100
+    
+    CalculateFinalQualityScore = score
+End Function
+
+Private Function ClassifyQualityGrade(qualityScore As Long) As String
+    If qualityScore >= EXCELLENT_QUALITY_THRESHOLD Then
+        ClassifyQualityGrade = "EXCELLENT"
+    ElseIf qualityScore >= GOOD_QUALITY_THRESHOLD Then
+        ClassifyQualityGrade = "GOOD"
+    ElseIf qualityScore >= POOR_QUALITY_THRESHOLD Then
+        ClassifyQualityGrade = "AVERAGE"
+    Else
+        ClassifyQualityGrade = "POOR"
+    End If
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Signal Processing Helper Functions
+' ─────────────────────────────────────────────────────────────
+Private Function CheckSignalCreationRate() As Boolean
+    CheckSignalCreationRate = True
+    
+    ' Calculate current creation rate
+    Dim timeDiff As Double
+    timeDiff = (Now - m_lastRateCalculation) * 24 * 60 ' Convert to minutes
+    
+    If timeDiff >= 1 Then ' Calculate rate every minute
+        m_signalCreationRate = m_signalsCreatedToday / timeDiff
+        m_lastRateCalculation = Now
+        
+        ' Reset daily counter if new day
+        If Format(Now, "yyyy-mm-dd") <> Format(m_lastSignalTime, "yyyy-mm-dd") Then
+            m_signalsCreatedToday = 0
+        End If
+    End If
+    
+    ' Check rate limit
+    If m_signalCreationRate > MAX_SIGNALS_PER_MINUTE Then
+        CheckSignalCreationRate = False
+    End If
+End Function
+
+Private Function ExtractSourceTypeFromTrigger(trigger As String) As String
+    If InStr(UCase(trigger), "MANUAL") > 0 Then
+        ExtractSourceTypeFromTrigger = "MANUAL"
+    ElseIf InStr(UCase(trigger), "CALENDAR") > 0 Then
+        ExtractSourceTypeFromTrigger = "CALENDAR"
+    ElseIf InStr(UCase(trigger), "PRICE") > 0 Then
+        ExtractSourceTypeFromTrigger = "PRICE"
+    Else
+        ExtractSourceTypeFromTrigger = "SYSTEM"
+    End If
+End Function
+
+Private Function GetDefaultPriorityForSource(sourceType As String) As Long
+    Select Case sourceType
+        Case "MANUAL": GetDefaultPriorityForSource = MANUAL_SIGNAL_PRIORITY
+        Case "CALENDAR": GetDefaultPriorityForSource = CALENDAR_SIGNAL_PRIORITY
+        Case "PRICE": GetDefaultPriorityForSource = PRICE_SIGNAL_PRIORITY
+        Case Else: GetDefaultPriorityForSource = SYSTEM_SIGNAL_PRIORITY
+    End Select
+End Function
+
+Private Function GetSignalPrefixForSource(sourceType As String) As String
+    Select Case sourceType
+        Case "MANUAL": GetSignalPrefixForSource = "MAN"
+        Case "CALENDAR": GetSignalPrefixForSource = "CAL"
+        Case "PRICE": GetSignalPrefixForSource = "PRC"
+        Case Else: GetSignalPrefixForSource = "SYS"
+    End Select
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Signal Template Functions
+' ─────────────────────────────────────────────────────────────
+Private Sub LoadSignalTemplates()
+    ' Load predefined signal templates
+    CreateDefaultTemplates
+    Debug.Print "LoadSignalTemplates: Loaded " & m_templateCount & " signal templates"
+End Sub
+
+Private Sub CreateDefaultTemplates()
+    ' Create default signal templates
+    
+    ' Manual template
+    CreateSignalTemplate "MANUAL_DEFAULT", "MANUAL", 0.1, 20, 40, 60, MANUAL_SIGNAL_PRIORITY, 1#, 10
+    
+    ' Calendar template
+    CreateSignalTemplate "CALENDAR_DEFAULT", "CALENDAR", 0.1, 15, 30, 30, CALENDAR_SIGNAL_PRIORITY, 1.2, 5
+    
+    ' Price template
+    CreateSignalTemplate "PRICE_DEFAULT", "PRICE", 0.1, 10, 20, 15, PRICE_SIGNAL_PRIORITY, 0.8, 0
+End Sub
+
+Private Sub CreateSignalTemplate(templateName As String, templateType As String, _
+    defaultLotSize As Double, defaultSLPips As Double, defaultTPPips As Double, _
+    defaultExpiryMinutes As Long, defaultPriority As Long, riskMultiplier As Double, qualityBonus As Long)
+    
+    If m_templateCount < 20 Then
+        m_templateCount = m_templateCount + 1
+        
+        With m_signalTemplates(m_templateCount)
+            .TemplateName = templateName
+            .TemplateType = templateType
+            .DefaultLotSize = defaultLotSize
+            .DefaultSLPips = defaultSLPips
+            .DefaultTPPips = defaultTPPips
+            .DefaultExpiryMinutes = defaultExpiryMinutes
+            .DefaultPriority = defaultPriority
+            .RiskMultiplier = riskMultiplier
+            .QualityBonus = qualityBonus
+            .IsActive = True
+            .CreatedTime = Now
+            .UseCount = 0
+            .SuccessRate = 0
+            .Notes = "Default template for " & templateType & " signals"
+        End With
+    End If
+End Sub
+
+Private Sub ApplySignalTemplate(ByRef signal As StandardSignal, templateName As String)
+    Dim templateIndex As Long
+    templateIndex = FindSignalTemplate(templateName)
+    
+    If templateIndex > 0 Then
+        With m_signalTemplates(templateIndex)
+            ' Apply template adjustments if signal values are at defaults
+            If signal.LotSize = 0 Then signal.LotSize = .DefaultLotSize
+            If signal.Priority = 0 Then signal.Priority = .DefaultPriority
+            
+            ' Apply quality bonus
+            signal.QualityScore = signal.QualityScore + .QualityBonus
+            
+            ' Update template usage
+            .UseCount = .UseCount + 1
+        End With
+    End If
+End Sub
+
+Private Function FindSignalTemplate(templateName As String) As Long
+    FindSignalTemplate = 0
+    
+    Dim i As Long
+    For i = 1 To m_templateCount
+        If m_signalTemplates(i).TemplateName = templateName And m_signalTemplates(i).IsActive Then
+            FindSignalTemplate = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Sub SaveSignalTemplates()
+    ' Save signal templates with usage statistics
+    Debug.Print "SaveSignalTemplates: Saved " & m_templateCount & " templates"
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Specialized Signal Parsing Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ParseCalendarEventData(eventData As String, ByRef request As SignalCreationRequest) As Boolean
+    ' Parse calendar event data into signal creation request
+    ' Format: Event,Currency,Impact,Direction,LotSize
+    
+    ParseCalendarEventData = False
+    
+    Dim eventParams() As String
+    eventParams = Split(eventData, ",")
+    
+    If UBound(eventParams) >= 3 Then
+        request.SourceType = "CALENDAR"
+        request.Symbol = Trim(eventParams(1)) & "USD" ' Simplified currency pair construction
+        request.OrderType = UCase(Trim(eventParams(3)))
+        request.LotSize = IIf(UBound(eventParams) >= 4, Val(eventParams(4)), 0.1)
+        request.Comment = "Calendar: " & Trim(eventParams(0))
+        request.ExpiryMinutes = 30 ' Calendar signals expire quickly
+        request.Priority = CALENDAR_SIGNAL_PRIORITY
+        
+        ' Set default SL/TP based on impact
+        Dim impact As String
+        impact = UCase(Trim(eventParams(2)))
+        
+        Select Case impact
+            Case "HIGH"
+                request.StopLoss = IIf(request.OrderType = "BUY", 1.05, 1.15) ' Simplified
+                request.TakeProfit = IIf(request.OrderType = "BUY", 1.15, 1.05)
+            Case "MEDIUM"
+                request.StopLoss = IIf(request.OrderType = "BUY", 1.08, 1.12)
+                request.TakeProfit = IIf(request.OrderType = "BUY", 1.12, 1.08)
+            Case "LOW"
+                request.StopLoss = IIf(request.OrderType = "BUY", 1.09, 1.11)
+                request.TakeProfit = IIf(request.OrderType = "BUY", 1.11, 1.09)
+        End Select
+        
+        ParseCalendarEventData = True
+    End If
+End Function
+
+Private Function ParsePriceTriggerData(triggerData As String, ByRef request As SignalCreationRequest) As Boolean
+    ' Parse price trigger data into signal creation request
+    ' Format: Symbol,TriggerPrice,Direction,LotSize,SL,TP
+    
+    ParsePriceTriggerData = False
+    
+    Dim triggerParams() As String
+    triggerParams = Split(triggerData, ",")
+    
+    If UBound(triggerParams) >= 5 Then
+        request.SourceType = "PRICE"
+        request.Symbol = UCase(Trim(triggerParams(0)))
+        request.OrderType = UCase(Trim(triggerParams(2)))
+        request.LotSize = Val(triggerParams(3))
+        request.StopLoss = Val(triggerParams(4))
+        request.TakeProfit = Val(triggerParams(5))
+        request.Comment = "Price trigger at " & triggerParams(1)
+        request.ExpiryMinutes = 15 ' Price signals expire quickly
+        request.Priority = PRICE_SIGNAL_PRIORITY
+        
+        ParsePriceTriggerData = True
+    End If
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Signal Queue Management Functions
+' ─────────────────────────────────────────────────────────────
+Private Function WriteSignalToQueue(signal As StandardSignal) As Boolean
+    On Error GoTo ErrorHandler
+    
+    WriteSignalToQueue = False
+    
+    ' Get SignalQueue worksheet
+    Dim ws As Worksheet
+    Set ws = GetWorksheet("SignalQueue")
+    If ws Is Nothing Then Exit Function
+    
+    ' Find next empty row
+    Dim nextRow As Long
+    nextRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+    
+    ' Write signal data
+    With ws
+        .Cells(nextRow, 1).Value = signal.SignalID
+        .Cells(nextRow, 2).Value = signal.Symbol
+        .Cells(nextRow, 3).Value = signal.OrderType
+        .Cells(nextRow, 4).Value = signal.LotSize
+        .Cells(nextRow, 5).Value = signal.StopLoss
+        .Cells(nextRow, 6).Value = signal.TakeProfit
+        .Cells(nextRow, 7).Value = signal.CreateTime
+        .Cells(nextRow, 8).Value = signal.ExpireTime
+        .Cells(nextRow, 9).Value = signal.Status
+        .Cells(nextRow, 10).Value = signal.SourceType
+        .Cells(nextRow, 11).Value = signal.Priority
+        .Cells(nextRow, 12).Value = signal.ValidationTier
+        .Cells(nextRow, 13).Value = Now ' Export time
+    End With
+    
+    WriteSignalToQueue = True
+    Exit Function
+    
+ErrorHandler:
+    WriteSignalToQueue = False
+End Function
+
+Private Sub AddToPendingSignals(signal As StandardSignal)
+    ' Add signal to pending tracking array
+    If m_pendingCount < MAX_PENDING_SIGNALS Then
+        m_pendingCount = m_pendingCount + 1
+        m_pendingSignals(m_pendingCount) = signal
+    End If
+End Sub
+
+Private Sub ClearPendingSignals()
+    Dim i As Long
+    For i = 1 To MAX_PENDING_SIGNALS
+        Dim emptySignal As StandardSignal
+        m_pendingSignals(i) = emptySignal
+    Next i
+    m_pendingCount = 0
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Event Publishing Functions
+' ─────────────────────────────────────────────────────────────
+Private Sub PublishSignalCreatedEvent(signal As StandardSignal)
+    ' Publish signal creation event via EventBus
+    On Error Resume Next
+    
+    Dim eventData As StandardEventData
+    eventData.EventName = "SIGNAL_CREATED"
+    eventData.EventType = "NOTIFICATION"
+    eventData.SourceModule = MODULE_NAME
+    eventData.Data = signal.SignalID & "," & signal.Symbol & "," & signal.OrderType
+    eventData.Metadata = "Priority:" & signal.Priority & ",Quality:" & signal.QualityScore
+    
+    ' In full implementation, would call EventBus.PublishEvent
+    Debug.Print "Event Published: SIGNAL_CREATED - " & signal.SignalID
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Utility and Configuration Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ValidateModuleDependencies() As Boolean
+    On Error Resume Next
+    ValidateModuleDependencies = True ' Simplified for template
+End Function
+
+Private Function ValidateSignalQueueWorksheet() As Boolean
+    On Error GoTo ErrorHandler
+    
+    ValidateSignalQueueWorksheet = False
+    
+    Dim ws As Worksheet
+    Set ws = GetWorksheet("SignalQueue")
+    
+    If ws Is Nothing Then
+        LOG_WARN "ValidateSignalQueueWorksheet", "SignalQueue worksheet not found"
+        Exit Function
+    End If
+    
+    ' Check if worksheet has the expected structure
+    If ws.Cells(1, 1).Value <> "SignalID" Then
+        LOG_WARN "ValidateSignalQueueWorksheet", "SignalQueue worksheet structure invalid"
+        Exit Function
+    End If
+    
+    ValidateSignalQueueWorksheet = True
+    Exit Function
+    
+ErrorHandler:
+    ValidateSignalQueueWorksheet = False
+End Function
+
+Private Function GetWorksheet(worksheetName As String) As Worksheet
+    On Error Resume Next
+    Set GetWorksheet = ThisWorkbook.Worksheets(worksheetName)
+End Function
+
+Private Sub InitializeValidationSystem()
+    ' Initialize validation system parameters
+    Debug.Print "InitializeValidationSystem: Validation system initialized"
+End Sub
+
+Private Sub UpdateAverageQuality(qualityScore As Long)
+    ' Update running average quality score
+    If m_validSignalsCreated > 0 Then
+        m_averageSignalQuality = ((m_averageSignalQuality * (m_validSignalsCreated - 1)) + qualityScore) / m_validSignalsCreated
+    Else
+        m_averageSignalQuality = qualityScore
+    End If
+End Sub
+
+Private Sub ProcessRemainingPendingSignals()
+    ' Process any remaining pending signals during shutdown
+    Debug.Print "ProcessRemainingPendingSignals: Processing " & m_pendingCount & " pending signals"
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Performance and Statistics Functions
+' ─────────────────────────────────────────────────────────────
+Private Sub ResetPerformanceCounters()
+    m_signalsCreatedToday = 0
+    m_signalCreationRate = 0
+    m_totalSignalsCreated = 0
+    m_validSignalsCreated = 0
+    m_rejectedSignals = 0
+    m_averageSignalQuality = 0
+    
+    m_basicValidationCount = 0
+    m_enhancedValidationCount = 0
+    m_comprehensiveValidationCount = 0
+    m_validationErrors = 0
+    
+    m_averageCreationTime = 0
+    m_averageValidationTime = 0
+    m_creationTimeouts = 0
+    m_validationTimeouts = 0
+End Sub
+
+Private Sub SaveSignalStatistics()
+    Debug.Print "Signal Builder Statistics:"
+    Debug.Print "  Total Created: " & m_totalSignalsCreated
+    Debug.Print "  Valid Signals: " & m_validSignalsCreated
+    Debug.Print "  Rejected: " & m_rejectedSignals
+    Debug.Print "  Average Quality: " & Format(m_averageSignalQuality, "0.0")
+    Debug.Print "  Validation Errors: " & m_validationErrors
+End Sub
+
+Private Function CalculatePerformanceScore() As Double
+    If m_totalSignalsCreated > 0 Then
+        CalculatePerformanceScore = (m_validSignalsCreated / m_totalSignalsCreated) * 100
+    Else
+        CalculatePerformanceScore = 100
+    End If
+End Function
+
+Private Function CalculateMemoryUsage() As Long
+    CalculateMemoryUsage = (m_pendingCount * 400) + (m_templateCount * 200)
+End Function
+
+Private Function CalculateHealthScore() As Long
+    Dim score As Long
+    score = 100
+    
+    ' Reduce score based on error rate
+    If m_errorCount > 3 Then score = score - 20
+    If m_errorCount > 10 Then score = score - 40
+    
+    ' Reduce score based on rejection rate
+    If m_totalSignalsCreated > 0 Then
+        Dim rejectionRate As Double
+        rejectionRate = (m_rejectedSignals / m_totalSignalsCreated) * 100
+        If rejectionRate > 15 Then score = score - 25
+        If rejectionRate > 30 Then score = score - 50
+    End If
+    
+    ' Reduce score based on validation errors
+    If m_validationErrors > 5 Then score = score - 15
+    
+    ' Bonus for good average quality
+    If m_averageSignalQuality > GOOD_QUALITY_THRESHOLD Then score = score + 10
+    
+    ' Reduce score if status is not active
+    If m_currentStatus <> ACTIVE Then score = score - 40
+    
+    If score < 0 Then score = 0
+    CalculateHealthScore = score
+End Function
+
+' ═══════════════════════════════════════════════════════════════
+' LOGGING INTEGRATION SECTION (MANDATORY)
+' ═══════════════════════════════════════════════════════════════
+
+Private Sub LOG_ENTER(functionName As String)
+    Debug.Print "[" & MODULE_NAME & "] ENTER: " & functionName
+End Sub
+
+Private Sub LOG_EXIT(functionName As String, Optional result As String = "")
+    Debug.Print "[" & MODULE_NAME & "] EXIT: " & functionName & " " & result
+End Sub
+
+Private Sub LOG_ERR(functionName As String, Optional customMessage As String = "")
+    Dim l_message As String
+    If Len(customMessage) > 0 Then
+        l_message = customMessage & " | VBA Error: " & Err.Description
+    Else
+        l_message = Err.Description
+    End If
+    Debug.Print "[" & MODULE_NAME & "] ERROR in " & functionName & ": " & l_message
+End Sub
+
+Private Sub LOG_WARN(functionName As String, warningMessage As String)
+    Debug.Print "[" & MODULE_NAME & "] WARN in " & functionName & ": " & warningMessage
+End Sub
+
+Private Sub LOG_CRITICAL(functionName As String, criticalMessage As String)
+    Debug.Print "[" & MODULE_NAME & "] CRITICAL in " & functionName & ": " & criticalMessage
+End Sub
+
+Private Function PERF_START() As Double
+    PERF_START = Timer
+End Function
+
+Private Sub PERF_END(functionName As String, startTime As Double)
+    Dim l_executionTime As Long
+    l_executionTime = (Timer - startTime) * 1000
+    Debug.Print "[" & MODULE_NAME & "] PERF: " & functionName & " took " & l_executionTime & "ms"
+End Sub
+
+' ═══════════════════════════════════════════════════════════════
+' END OF MODULE: signal_builder.bas
+' ═══════════════════════════════════════════════════════════════

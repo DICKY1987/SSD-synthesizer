@@ -1,0 +1,1223 @@
+' ===================================================================
+' MODULE: outcome_analyzer.bas
+' SUBSYSTEM: TRADE_MANAGER
+' PURPOSE: Trade results processing and outcome analysis
+' DEPENDENCIES: feedback_processor.bas, StandardDataTypes.bas
+' AUTHOR: System Developer | VERSION: 1.0.0 | LAST MODIFIED: 2024-12-03
+' MQL4 COMPATIBLE: Yes (No MQL5-specific features)
+' ===================================================================
+Option Explicit
+
+' ═══════════════════════════════════════════════════════════════
+' MODULE CONFIGURATION SECTION
+' ═══════════════════════════════════════════════════════════════
+Private Const MODULE_NAME As String = "outcome_analyzer"
+Private Const MODULE_VERSION As String = "1.0.0"
+Private Const SUBSYSTEM_NAME As String = "TRADE_MANAGER"
+
+' Analysis configuration constants
+Private Const MAX_ANALYSIS_HISTORY As Long = 1000
+Private Const ANALYSIS_BATCH_SIZE As Long = 50
+Private Const MIN_PIPS_FOR_WIN As Double = 1#
+Private Const BREAKEVEN_TOLERANCE_PIPS As Double = 0.5
+Private Const ANALYSIS_TIMEOUT_MS As Long = 15000
+
+' Outcome classification thresholds
+Private Const EXCELLENT_QUALITY_THRESHOLD As Long = 90
+Private Const GOOD_QUALITY_THRESHOLD As Long = 70
+Private Const POOR_QUALITY_THRESHOLD As Long = 40
+Private Const MIN_TRADE_DURATION_MINUTES As Long = 1
+Private Const MAX_REASONABLE_DURATION_HOURS As Long = 48
+
+' Performance analysis constants
+Private Const ROLLING_ANALYSIS_DAYS As Long = 30
+Private Const MIN_TRADES_FOR_ANALYSIS As Long = 10
+Private Const SIGNIFICANT_SLIPPAGE_PIPS As Double = 3#
+Private Const HIGH_QUALITY_WIN_BONUS As Long = 15
+
+' ═══════════════════════════════════════════════════════════════
+' MODULE VARIABLES SECTION
+' ═══════════════════════════════════════════════════════════════
+Private m_isInitialized As Boolean
+Private m_currentStatus As ModuleStatus
+Private m_errorCount As Long
+Private m_lastError As StandardError
+
+' Analysis tracking arrays (MQL4 compatible)
+Private m_analyzedTrades(1 To MAX_ANALYSIS_HISTORY) As AnalyzedTradeRecord
+Private m_analyzedCount As Long
+Private m_lastAnalysisTime As Date
+
+' Analysis statistics
+Private m_totalTradesAnalyzed As Long
+Private m_winningTrades As Long
+Private m_losingTrades As Long
+Private m_breakevenTrades As Long
+Private m_totalPnL As Double
+Private m_totalPnLPips As Double
+
+' Quality distribution tracking
+Private m_excellentQualityCount As Long
+Private m_goodQualityCount As Long
+Private m_averageQualityCount As Long
+Private m_poorQualityCount As Long
+
+' Performance metrics
+Private m_averageWinAmount As Double
+Private m_averageLossAmount As Double
+Private m_averageWinPips As Double
+Private m_averageLossPips As Double
+Private m_largestWin As Double
+Private m_largestLoss As Double
+Private m_longestWinStreak As Long
+Private m_longestLossStreak As Long
+Private m_currentStreak As Long
+Private m_currentStreakType As String
+
+' Processing performance
+Private m_averageAnalysisTime As Double
+Private m_analysisErrors As Long
+Private m_lastProcessingBatch As Long
+
+' ═══════════════════════════════════════════════════════════════
+' INTERNAL DATA STRUCTURES SECTION
+' ═══════════════════════════════════════════════════════════════
+
+' ─────────────────────────────────────────────────────────────
+' AnalyzedTradeRecord - Complete trade analysis information
+' ─────────────────────────────────────────────────────────────
+Private Type AnalyzedTradeRecord
+    ' Core trade information
+    TradeID As String
+    SignalID As String
+    Symbol As String
+    OrderType As String
+    LotSize As Double
+    
+    ' Price and timing data
+    EntryPrice As Double
+    ExitPrice As Double
+    EntryTime As Date
+    ExitTime As Date
+    Duration As Long            ' Duration in minutes
+    
+    ' Financial results
+    PnL As Double              ' Profit/Loss in account currency
+    PnLPips As Double          ' Profit/Loss in pips
+    Commission As Double
+    Swap As Double
+    NetPnL As Double           ' PnL after costs
+    
+    ' Analysis results
+    Outcome As String          ' WIN, LOSS, BREAKEVEN
+    QualityScore As Long       ' Overall trade quality (0-100)
+    QualityGrade As String     ' EXCELLENT, GOOD, AVERAGE, POOR
+    
+    ' Execution analysis
+    EntrySlippage As Double    ' Entry slippage in pips
+    ExitSlippage As Double     ' Exit slippage in pips
+    ExecutionQuality As Long   ' Execution quality score
+    
+    ' Strategy analysis
+    StrategyID As String
+    SourceType As String       ' CALENDAR, PRICE, MANUAL
+    MarketCondition As String
+    
+    ' Risk analysis
+    RiskRewardRatio As Double
+    MaxDrawdownDuringTrade As Double
+    MaxFavorableDuringTrade As Double
+    
+    ' Classification flags
+    IsWinner As Boolean
+    IsHighQuality As Boolean
+    IsBreakeven As Boolean
+    HasSignificantSlippage As Boolean
+    IsQuickTrade As Boolean    ' Closed within 1 hour
+    IsLongTerm As Boolean      ' Held over 24 hours
+    
+    ' Analysis metadata
+    AnalysisTime As Date
+    AnalysisVersion As String
+    Notes As String
+End Type
+
+' ─────────────────────────────────────────────────────────────
+' TradeOutcome - Simplified outcome classification
+' ─────────────────────────────────────────────────────────────
+Private Type TradeOutcome
+    Outcome As String          ' WIN, LOSS, BREAKEVEN
+    PnL As Double
+    PnLPips As Double
+    QualityScore As Long
+    QualityGrade As String
+    IsSignificant As Boolean   ' Meets minimum criteria for analysis
+    ReasonCode As String       ' Detailed classification reason
+End Type
+
+' ─────────────────────────────────────────────────────────────
+' AnalysisResult - Result of analysis operation
+' ─────────────────────────────────────────────────────────────
+Private Type AnalysisResult
+    Success As Boolean
+    TradesAnalyzed As Long
+    WinningTrades As Long
+    LosingTrades As Long
+    BreakevenTrades As Long
+    TotalPnL As Double
+    AverageQuality As Double
+    ProcessingTime As Double
+    ErrorMessage As String
+End Type
+
+' ═══════════════════════════════════════════════════════════════
+' STANDARD INTERFACE SECTION (MANDATORY - ALL MODULES)
+' ═══════════════════════════════════════════════════════════════
+
+Public Function Initialize() As Boolean
+    LOG_ENTER "Initialize"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    Initialize = False
+    m_currentStatus = INITIALIZING
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Outcome Analyzer Module Initialization                      │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Validate dependencies
+    If Not ValidateModuleDependencies() Then
+        LOG_CRITICAL "Initialize", "Module dependencies not met"
+        Exit Function
+    End If
+    
+    ' Initialize analysis tracking
+    ClearAnalysisTracking
+    
+    ' Load existing analysis history
+    LoadAnalysisHistory
+    
+    ' Reset performance counters
+    ResetPerformanceCounters
+    
+    ' Initialize analysis parameters
+    InitializeAnalysisParameters
+    
+    ' Validate TradeResults worksheet
+    If Not ValidateTradeResultsWorksheet() Then
+        LOG_CRITICAL "Initialize", "TradeResults worksheet validation failed"
+        Exit Function
+    End If
+    
+    ' Set initial state
+    m_isInitialized = True
+    m_currentStatus = ACTIVE
+    m_errorCount = 0
+    m_lastAnalysisTime = Now
+    
+    Initialize = True
+    PERF_END "Initialize", l_startTime
+    LOG_EXIT "Initialize", "SUCCESS - Ready to analyze trades"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "Initialize"
+    m_currentStatus = FATAL_ERROR
+    Initialize = False
+    PERF_END "Initialize", l_startTime
+    LOG_EXIT "Initialize", "FAILED"
+End Function
+
+Public Function Shutdown() As Boolean
+    LOG_ENTER "Shutdown"
+    On Error GoTo ErrorHandler
+    
+    Shutdown = False
+    m_currentStatus = SHUTTING_DOWN
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Graceful Shutdown Process                                   │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Analyze any remaining unprocessed trades
+    ProcessRemainingTrades
+    
+    ' Save analysis results and statistics
+    SaveAnalysisResults
+    
+    ' Generate final analysis report
+    GenerateFinalAnalysisReport
+    
+    ' Clear tracking arrays
+    ClearAnalysisTracking
+    
+    ' Mark as shutdown
+    m_isInitialized = False
+    m_currentStatus = SHUTDOWN
+    
+    Shutdown = True
+    LOG_EXIT "Shutdown", "SUCCESS"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "Shutdown"
+    m_currentStatus = ERROR_STATE
+    Shutdown = False
+    LOG_EXIT "Shutdown", "FAILED"
+End Function
+
+Public Function GetModuleStatus() As ModuleStatus
+    GetModuleStatus = m_currentStatus
+End Function
+
+Public Function GetModuleName() As String
+    GetModuleName = MODULE_NAME
+End Function
+
+Public Function GetModuleVersion() As String
+    GetModuleVersion = MODULE_VERSION
+End Function
+
+Public Function ProcessHealthCheck() As HealthStatus
+    Dim health As HealthStatus
+    health.ComponentName = MODULE_NAME
+    health.Status = m_currentStatus
+    health.LastUpdate = Now
+    health.ErrorCount = m_errorCount
+    health.Performance = CalculatePerformanceScore()
+    health.MemoryUsage = CalculateMemoryUsage()
+    health.HealthScore = CalculateHealthScore()
+    health.LastError = m_lastError.Message
+    health.Recovery = "AUTO"
+    health.Notes = "Analyzed: " & m_totalTradesAnalyzed & ", Win rate: " & Format(GetWinRate(), "0.0") & "%, Avg quality: " & Format(GetAverageQuality(), "0.0")
+    ProcessHealthCheck = health
+End Function
+
+Public Function HandleError(errorInfo As StandardError) As Boolean
+    On Error Resume Next
+    m_errorCount = m_errorCount + 1
+    m_lastError = errorInfo
+    
+    ' Escalate status based on error count and severity
+    If errorInfo.Severity = "CRITICAL" Then
+        m_currentStatus = ERROR_STATE
+    ElseIf m_errorCount > 5 And m_currentStatus = ACTIVE Then
+        m_currentStatus = DEGRADED
+    ElseIf m_errorCount > 15 Then
+        m_currentStatus = ERROR_STATE
+    End If
+    
+    HandleError = True
+End Function
+
+' ═══════════════════════════════════════════════════════════════
+' CORE FUNCTIONALITY SECTION
+' ═══════════════════════════════════════════════════════════════
+
+' ─────────────────────────────────────────────────────────────
+' AnalyzeTradeOutcome - Main trade outcome analysis function
+' ─────────────────────────────────────────────────────────────
+Public Function AnalyzeTradeOutcome(trade As StandardTradeResult) As TradeOutcome
+    LOG_ENTER "AnalyzeTradeOutcome"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    Dim emptyOutcome As TradeOutcome
+    AnalyzeTradeOutcome = emptyOutcome
+    
+    If Not m_isInitialized Then
+        LOG_WARN "AnalyzeTradeOutcome", "Module not initialized"
+        Exit Function
+    End If
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Comprehensive Trade Outcome Analysis                        │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Validate trade data
+    If Not IsValidTradeResult(trade) Then
+        LOG_WARN "AnalyzeTradeOutcome", "Invalid trade result for analysis: " & trade.TradeID
+        Exit Function
+    End If
+    
+    ' Only analyze closed trades
+    If trade.Status <> "CLOSED" Then
+        LOG_WARN "AnalyzeTradeOutcome", "Cannot analyze open trade: " & trade.TradeID
+        Exit Function
+    End If
+    
+    Dim outcome As TradeOutcome
+    
+    ' Classify basic outcome
+    outcome.PnL = trade.PnL
+    outcome.PnLPips = trade.PnLPips
+    outcome.Outcome = ClassifyTradeOutcome(trade.PnLPips)
+    
+    ' Calculate quality score
+    outcome.QualityScore = CalculateTradeQuality(trade)
+    outcome.QualityGrade = ClassifyQualityGrade(outcome.QualityScore)
+    
+    ' Determine significance
+    outcome.IsSignificant = IsTradeSignificant(trade)
+    outcome.ReasonCode = GetClassificationReason(trade, outcome)
+    
+    ' Create detailed analysis record
+    If outcome.IsSignificant Then
+        CreateDetailedAnalysisRecord trade, outcome
+        UpdateAnalysisStatistics outcome
+    End If
+    
+    AnalyzeTradeOutcome = outcome
+    
+    PERF_END "AnalyzeTradeOutcome", l_startTime
+    LOG_EXIT "AnalyzeTradeOutcome", "SUCCESS - " & outcome.Outcome & " (" & outcome.QualityGrade & ")"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "AnalyzeTradeOutcome"
+    AnalyzeTradeOutcome = emptyOutcome
+    m_analysisErrors = m_analysisErrors + 1
+    PERF_END "AnalyzeTradeOutcome", l_startTime
+    LOG_EXIT "AnalyzeTradeOutcome", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' ClassifyResult - Simple result classification
+' ─────────────────────────────────────────────────────────────
+Public Function ClassifyResult(pnl As Double) As String
+    LOG_ENTER "ClassifyResult"
+    
+    If Not m_isInitialized Then
+        ClassifyResult = "UNKNOWN"
+        LOG_EXIT "ClassifyResult", "Module not initialized"
+        Exit Function
+    End If
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Simple P&L Classification                                   │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    If pnl > MIN_PIPS_FOR_WIN Then
+        ClassifyResult = "WIN"
+    ElseIf pnl < -MIN_PIPS_FOR_WIN Then
+        ClassifyResult = "LOSS"
+    Else
+        ClassifyResult = "BREAKEVEN"
+    End If
+    
+    LOG_EXIT "ClassifyResult", ClassifyResult & " (PnL: " & Format(pnl, "0.0") & " pips)"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' AnalyzeClosedTrades - Batch analysis of closed trades
+' ─────────────────────────────────────────────────────────────
+Public Function AnalyzeClosedTrades() As Long
+    LOG_ENTER "AnalyzeClosedTrades"
+    Dim l_startTime As Double: l_startTime = PERF_START()
+    On Error GoTo ErrorHandler
+    
+    AnalyzeClosedTrades = 0
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Batch Analysis of Closed Trades from TradeResults          │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    ' Get TradeResults worksheet
+    Dim ws As Worksheet
+    Set ws = GetWorksheet("TradeResults")
+    If ws Is Nothing Then
+        LOG_WARN "AnalyzeClosedTrades", "TradeResults worksheet not found"
+        Exit Function
+    End If
+    
+    Dim l_analyzedCount As Long
+    l_analyzedCount = 0
+    
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    
+    ' Process closed trades that haven't been analyzed
+    Dim i As Long
+    For i = 2 To lastRow ' Assuming row 1 is header
+        If l_analyzedCount >= ANALYSIS_BATCH_SIZE Then Exit For
+        
+        If ws.Cells(i, 13).Value = "CLOSED" Then ' Status column
+            ' Check if already analyzed
+            If Not IsTradeAlreadyAnalyzed(ws.Cells(i, 1).Value) Then
+                Dim tradeResult As StandardTradeResult
+                If ReadTradeResultFromWorksheet(ws, i, tradeResult) Then
+                    Dim outcome As TradeOutcome
+                    outcome = AnalyzeTradeOutcome(tradeResult)
+                    
+                    If Len(outcome.Outcome) > 0 Then
+                        ' Update worksheet with analysis results
+                        WriteAnalysisToWorksheet ws, i, outcome
+                        l_analyzedCount = l_analyzedCount + 1
+                    End If
+                End If
+            End If
+        End If
+    Next i
+    
+    ' Update global statistics
+    m_totalTradesAnalyzed = m_totalTradesAnalyzed + l_analyzedCount
+    m_lastAnalysisTime = Now
+    
+    AnalyzeClosedTrades = l_analyzedCount
+    
+    PERF_END "AnalyzeClosedTrades", l_startTime
+    LOG_EXIT "AnalyzeClosedTrades", "Analyzed " & l_analyzedCount & " trades"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "AnalyzeClosedTrades"
+    AnalyzeClosedTrades = 0
+    m_analysisErrors = m_analysisErrors + 1
+    PERF_END "AnalyzeClosedTrades", l_startTime
+    LOG_EXIT "AnalyzeClosedTrades", "FAILED"
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' GetPerformanceMetrics - Calculate comprehensive performance metrics
+' ─────────────────────────────────────────────────────────────
+Public Function GetPerformanceMetrics() As String
+    LOG_ENTER "GetPerformanceMetrics"
+    On Error GoTo ErrorHandler
+    
+    GetPerformanceMetrics = ""
+    If Not m_isInitialized Then Exit Function
+    
+    ' ┌─────────────────────────────────────────────────────────────┐
+    ' │ Generate Comprehensive Performance Report                   │
+    ' └─────────────────────────────────────────────────────────────┘
+    
+    Dim metrics As String
+    metrics = "TRADE OUTCOME ANALYSIS REPORT" & vbCrLf
+    metrics = metrics & "Generated: " & Format(Now, "yyyy-mm-dd hh:nn:ss") & vbCrLf & vbCrLf
+    
+    ' Basic statistics
+    metrics = metrics & "BASIC STATISTICS:" & vbCrLf
+    metrics = metrics & "  Total Trades Analyzed: " & m_totalTradesAnalyzed & vbCrLf
+    metrics = metrics & "  Winning Trades: " & m_winningTrades & " (" & Format(GetWinRate(), "0.0") & "%)" & vbCrLf
+    metrics = metrics & "  Losing Trades: " & m_losingTrades & " (" & Format(GetLossRate(), "0.0") & "%)" & vbCrLf
+    metrics = metrics & "  Breakeven Trades: " & m_breakevenTrades & " (" & Format(GetBreakevenRate(), "0.0") & "%)" & vbCrLf
+    metrics = metrics & vbCrLf
+    
+    ' Financial performance
+    metrics = metrics & "FINANCIAL PERFORMANCE:" & vbCrLf
+    metrics = metrics & "  Total P&L: " & Format(m_totalPnL, "0.00") & " (currency)" & vbCrLf
+    metrics = metrics & "  Total P&L: " & Format(m_totalPnLPips, "0.0") & " pips" & vbCrLf
+    metrics = metrics & "  Average Win: " & Format(m_averageWinAmount, "0.00") & " (" & Format(m_averageWinPips, "0.0") & " pips)" & vbCrLf
+    metrics = metrics & "  Average Loss: " & Format(m_averageLossAmount, "0.00") & " (" & Format(m_averageLossPips, "0.0") & " pips)" & vbCrLf
+    metrics = metrics & "  Profit Factor: " & Format(GetProfitFactor(), "0.00") & vbCrLf
+    metrics = metrics & "  Risk/Reward Ratio: " & Format(GetRiskRewardRatio(), "0.00") & vbCrLf
+    metrics = metrics & vbCrLf
+    
+    ' Quality distribution
+    metrics = metrics & "QUALITY DISTRIBUTION:" & vbCrLf
+    metrics = metrics & "  Excellent Quality: " & m_excellentQualityCount & " (" & Format(GetQualityDistribution("EXCELLENT"), "0.0") & "%)" & vbCrLf
+    metrics = metrics & "  Good Quality: " & m_goodQualityCount & " (" & Format(GetQualityDistribution("GOOD"), "0.0") & "%)" & vbCrLf
+    metrics = metrics & "  Average Quality: " & m_averageQualityCount & " (" & Format(GetQualityDistribution("AVERAGE"), "0.0") & "%)" & vbCrLf
+    metrics = metrics & "  Poor Quality: " & m_poorQualityCount & " (" & Format(GetQualityDistribution("POOR"), "0.0") & "%)" & vbCrLf
+    metrics = metrics & "  Average Quality Score: " & Format(GetAverageQuality(), "0.0") & vbCrLf
+    metrics = metrics & vbCrLf
+    
+    ' Streak analysis
+    metrics = metrics & "STREAK ANALYSIS:" & vbCrLf
+    metrics = metrics & "  Longest Win Streak: " & m_longestWinStreak & vbCrLf
+    metrics = metrics & "  Longest Loss Streak: " & m_longestLossStreak & vbCrLf
+    metrics = metrics & "  Current Streak: " & m_currentStreak & " (" & m_currentStreakType & ")" & vbCrLf
+    metrics = metrics & vbCrLf
+    
+    ' Extremes
+    metrics = metrics & "TRADE EXTREMES:" & vbCrLf
+    metrics = metrics & "  Largest Win: " & Format(m_largestWin, "0.00") & vbCrLf
+    metrics = metrics & "  Largest Loss: " & Format(m_largestLoss, "0.00") & vbCrLf
+    
+    GetPerformanceMetrics = metrics
+    
+    LOG_EXIT "GetPerformanceMetrics", "Report generated (" & Len(metrics) & " chars)"
+    Exit Function
+    
+ErrorHandler:
+    LOG_ERR "GetPerformanceMetrics"
+    GetPerformanceMetrics = "Error generating performance metrics: " & Err.Description
+    LOG_EXIT "GetPerformanceMetrics", "FAILED"
+End Function
+
+' ═══════════════════════════════════════════════════════════════
+' PRIVATE HELPER SECTION
+' ═══════════════════════════════════════════════════════════════
+
+' ─────────────────────────────────────────────────────────────
+' Outcome Classification Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ClassifyTradeOutcome(pnlPips As Double) As String
+    If pnlPips > MIN_PIPS_FOR_WIN Then
+        ClassifyTradeOutcome = "WIN"
+    ElseIf pnlPips < -MIN_PIPS_FOR_WIN Then
+        ClassifyTradeOutcome = "LOSS"
+    ElseIf Abs(pnlPips) <= BREAKEVEN_TOLERANCE_PIPS Then
+        ClassifyTradeOutcome = "BREAKEVEN"
+    Else
+        ' Small gain/loss within minimum threshold
+        ClassifyTradeOutcome = "BREAKEVEN"
+    End If
+End Function
+
+Private Function CalculateTradeQuality(trade As StandardTradeResult) As Long
+    ' Calculate comprehensive trade quality score (0-100)
+    Dim score As Long
+    score = 50 ' Base score
+    
+    ' P&L contribution
+    If trade.PnLPips > 0 Then
+        score = score + 25 ' Winning trades get bonus
+        If trade.PnLPips > 10 Then score = score + 10 ' Large wins get extra bonus
+        If trade.PnLPips > 25 Then score = score + 10 ' Very large wins
+    Else
+        score = score - 20 ' Losing trades get penalty
+        If trade.PnLPips < -20 Then score = score - 15 ' Large losses get extra penalty
+    End If
+    
+    ' Duration analysis
+    If trade.Duration > 0 Then
+        If trade.Duration < MIN_TRADE_DURATION_MINUTES Then
+            score = score - 15 ' Too quick trades
+        ElseIf trade.Duration > (MAX_REASONABLE_DURATION_HOURS * 60) Then
+            score = score - 10 ' Very long trades
+        Else
+            score = score + 5 ' Reasonable duration
+        End If
+    End If
+    
+    ' Execution quality (from original Quality field)
+    If trade.Quality > 0 Then
+        If trade.Quality >= 90 Then
+            score = score + 15
+        ElseIf trade.Quality >= 70 Then
+            score = score + 10
+        ElseIf trade.Quality >= 50 Then
+            score = score + 5
+        Else
+            score = score - 10
+        End If
+    End If
+    
+    ' Ensure score is within bounds
+    If score < 0 Then score = 0
+    If score > 100 Then score = 100
+    
+    CalculateTradeQuality = score
+End Function
+
+Private Function ClassifyQualityGrade(qualityScore As Long) As String
+    If qualityScore >= EXCELLENT_QUALITY_THRESHOLD Then
+        ClassifyQualityGrade = "EXCELLENT"
+    ElseIf qualityScore >= GOOD_QUALITY_THRESHOLD Then
+        ClassifyQualityGrade = "GOOD"
+    ElseIf qualityScore >= POOR_QUALITY_THRESHOLD Then
+        ClassifyQualityGrade = "AVERAGE"
+    Else
+        ClassifyQualityGrade = "POOR"
+    End If
+End Function
+
+Private Function IsTradeSignificant(trade As StandardTradeResult) As Boolean
+    ' Determine if trade meets criteria for detailed analysis
+    IsTradeSignificant = True
+    
+    ' Must be closed
+    If trade.Status <> "CLOSED" Then
+        IsTradeSignificant = False
+        Exit Function
+    End If
+    
+    ' Must have basic data
+    If Len(trade.TradeID) = 0 Or Len(trade.Symbol) = 0 Then
+        IsTradeSignificant = False
+        Exit Function
+    End If
+    
+    ' Must have reasonable duration
+    If trade.Duration < 0 Then
+        IsTradeSignificant = False
+        Exit Function
+    End If
+End Function
+
+Private Function GetClassificationReason(trade As StandardTradeResult, outcome As TradeOutcome) As String
+    Dim reason As String
+    reason = outcome.Outcome & "_"
+    
+    ' Add outcome-specific details
+    Select Case outcome.Outcome
+        Case "WIN"
+            If outcome.PnLPips > 20 Then
+                reason = reason & "LARGE"
+            ElseIf outcome.PnLPips > 10 Then
+                reason = reason & "MEDIUM"
+            Else
+                reason = reason & "SMALL"
+            End If
+            
+        Case "LOSS"
+            If outcome.PnLPips < -20 Then
+                reason = reason & "LARGE"
+            ElseIf outcome.PnLPips < -10 Then
+                reason = reason & "MEDIUM"
+            Else
+                reason = reason & "SMALL"
+            End If
+            
+        Case "BREAKEVEN"
+            reason = reason & "NEUTRAL"
+    End Select
+    
+    ' Add quality modifier
+    reason = reason & "_" & outcome.QualityGrade
+    
+    GetClassificationReason = reason
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Analysis Record Management
+' ─────────────────────────────────────────────────────────────
+Private Sub CreateDetailedAnalysisRecord(trade As StandardTradeResult, outcome As TradeOutcome)
+    Dim emptySlot As Long
+    emptySlot = FindEmptyAnalysisSlot()
+    
+    If emptySlot > 0 Then
+        With m_analyzedTrades(emptySlot)
+            ' Core trade information
+            .TradeID = trade.TradeID
+            .SignalID = trade.SignalID
+            .Symbol = trade.Symbol
+            .OrderType = trade.OrderType
+            .LotSize = trade.LotSize
+            
+            ' Price and timing data
+            .EntryPrice = trade.EntryPrice
+            .ExitPrice = trade.ExitPrice
+            .EntryTime = trade.EntryTime
+            .ExitTime = trade.ExitTime
+            .Duration = trade.Duration
+            
+            ' Financial results
+            .PnL = trade.PnL
+            .PnLPips = trade.PnLPips
+            .Commission = 0 ' Would be populated from detailed trade data
+            .Swap = 0       ' Would be populated from detailed trade data
+            .NetPnL = trade.PnL ' Simplified
+            
+            ' Analysis results
+            .Outcome = outcome.Outcome
+            .QualityScore = outcome.QualityScore
+            .QualityGrade = outcome.QualityGrade
+            
+            ' Execution analysis (simplified)
+            .EntrySlippage = 0      ' Would be calculated from execution data
+            .ExitSlippage = 0       ' Would be calculated from execution data
+            .ExecutionQuality = trade.Quality
+            
+            ' Strategy analysis
+            .StrategyID = ExtractStrategyFromSignalID(trade.SignalID)
+            .SourceType = ExtractSourceFromSignalID(trade.SignalID)
+            .MarketCondition = "UNKNOWN" ' Would be determined from market analysis
+            
+            ' Risk analysis (simplified calculations)
+            .RiskRewardRatio = CalculateRiskRewardRatio(trade)
+            .MaxDrawdownDuringTrade = 0    ' Would need tick data
+            .MaxFavorableDuringTrade = 0   ' Would need tick data
+            
+            ' Classification flags
+            .IsWinner = (outcome.Outcome = "WIN")
+            .IsHighQuality = (outcome.QualityScore >= GOOD_QUALITY_THRESHOLD)
+            .IsBreakeven = (outcome.Outcome = "BREAKEVEN")
+            .HasSignificantSlippage = False ' Would be calculated from execution data
+            .IsQuickTrade = (trade.Duration <= 60) ' 1 hour or less
+            .IsLongTerm = (trade.Duration >= 1440)  ' 24 hours or more
+            
+            ' Analysis metadata
+            .AnalysisTime = Now
+            .AnalysisVersion = MODULE_VERSION
+            .Notes = trade.Notes
+        End With
+        
+        If emptySlot > m_analyzedCount Then
+            m_analyzedCount = emptySlot
+        End If
+    End If
+End Sub
+
+Private Function FindEmptyAnalysisSlot() As Long
+    FindEmptyAnalysisSlot = 0
+    
+    Dim i As Long
+    For i = 1 To MAX_ANALYSIS_HISTORY
+        If Len(m_analyzedTrades(i).TradeID) = 0 Then
+            FindEmptyAnalysisSlot = i
+            Exit Function
+        End If
+    Next i
+    
+    ' If no empty slot, use oldest entry
+    FindEmptyAnalysisSlot = FindOldestAnalysisEntry()
+End Function
+
+Private Function FindOldestAnalysisEntry() As Long
+    FindOldestAnalysisEntry = 1
+    
+    Dim oldestTime As Date
+    oldestTime = m_analyzedTrades(1).AnalysisTime
+    
+    Dim i As Long
+    For i = 2 To m_analyzedCount
+        If m_analyzedTrades(i).AnalysisTime < oldestTime Then
+            oldestTime = m_analyzedTrades(i).AnalysisTime
+            FindOldestAnalysisEntry = i
+        End If
+    Next i
+End Function
+
+Private Sub UpdateAnalysisStatistics(outcome As TradeOutcome)
+    ' Update running statistics
+    Select Case outcome.Outcome
+        Case "WIN"
+            m_winningTrades = m_winningTrades + 1
+            m_averageWinAmount = ((m_averageWinAmount * (m_winningTrades - 1)) + outcome.PnL) / m_winningTrades
+            m_averageWinPips = ((m_averageWinPips * (m_winningTrades - 1)) + outcome.PnLPips) / m_winningTrades
+            
+            If outcome.PnL > m_largestWin Then m_largestWin = outcome.PnL
+            
+            ' Update streak
+            If m_currentStreakType = "WIN" Then
+                m_currentStreak = m_currentStreak + 1
+                If m_currentStreak > m_longestWinStreak Then m_longestWinStreak = m_currentStreak
+            Else
+                m_currentStreakType = "WIN"
+                m_currentStreak = 1
+            End If
+            
+        Case "LOSS"
+            m_losingTrades = m_losingTrades + 1
+            m_averageLossAmount = ((m_averageLossAmount * (m_losingTrades - 1)) + outcome.PnL) / m_losingTrades
+            m_averageLossPips = ((m_averageLossPips * (m_losingTrades - 1)) + outcome.PnLPips) / m_losingTrades
+            
+            If outcome.PnL < m_largestLoss Then m_largestLoss = outcome.PnL
+            
+            ' Update streak
+            If m_currentStreakType = "LOSS" Then
+                m_currentStreak = m_currentStreak + 1
+                If m_currentStreak > m_longestLossStreak Then m_longestLossStreak = m_currentStreak
+            Else
+                m_currentStreakType = "LOSS"
+                m_currentStreak = 1
+            End If
+            
+        Case "BREAKEVEN"
+            m_breakevenTrades = m_breakevenTrades + 1
+            
+            ' Reset streak for breakeven
+            m_currentStreakType = "BREAKEVEN"
+            m_currentStreak = 0
+    End Select
+    
+    ' Update totals
+    m_totalPnL = m_totalPnL + outcome.PnL
+    m_totalPnLPips = m_totalPnLPips + outcome.PnLPips
+    
+    ' Update quality distribution
+    Select Case outcome.QualityGrade
+        Case "EXCELLENT": m_excellentQualityCount = m_excellentQualityCount + 1
+        Case "GOOD": m_goodQualityCount = m_goodQualityCount + 1
+        Case "AVERAGE": m_averageQualityCount = m_averageQualityCount + 1
+        Case "POOR": m_poorQualityCount = m_poorQualityCount + 1
+    End Select
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Performance Calculation Functions
+' ─────────────────────────────────────────────────────────────
+Private Function GetWinRate() As Double
+    If m_totalTradesAnalyzed > 0 Then
+        GetWinRate = (m_winningTrades / m_totalTradesAnalyzed) * 100
+    Else
+        GetWinRate = 0
+    End If
+End Function
+
+Private Function GetLossRate() As Double
+    If m_totalTradesAnalyzed > 0 Then
+        GetLossRate = (m_losingTrades / m_totalTradesAnalyzed) * 100
+    Else
+        GetLossRate = 0
+    End If
+End Function
+
+Private Function GetBreakevenRate() As Double
+    If m_totalTradesAnalyzed > 0 Then
+        GetBreakevenRate = (m_breakevenTrades / m_totalTradesAnalyzed) * 100
+    Else
+        GetBreakevenRate = 0
+    End If
+End Function
+
+Private Function GetProfitFactor() As Double
+    Dim grossProfit As Double
+    Dim grossLoss As Double
+    
+    grossProfit = m_winningTrades * m_averageWinAmount
+    grossLoss = m_losingTrades * Abs(m_averageLossAmount)
+    
+    If grossLoss > 0 Then
+        GetProfitFactor = grossProfit / grossLoss
+    Else
+        GetProfitFactor = IIf(grossProfit > 0, 999, 1)
+    End If
+End Function
+
+Private Function GetRiskRewardRatio() As Double
+    If m_averageLossAmount <> 0 Then
+        GetRiskRewardRatio = m_averageWinAmount / Abs(m_averageLossAmount)
+    Else
+        GetRiskRewardRatio = IIf(m_averageWinAmount > 0, 999, 1)
+    End If
+End Function
+
+Private Function GetAverageQuality() As Double
+    If m_totalTradesAnalyzed > 0 Then
+        Dim totalQuality As Double
+        totalQuality = (m_excellentQualityCount * 95) + _
+                      (m_goodQualityCount * 80) + _
+                      (m_averageQualityCount * 55) + _
+                      (m_poorQualityCount * 25)
+        GetAverageQuality = totalQuality / m_totalTradesAnalyzed
+    Else
+        GetAverageQuality = 0
+    End If
+End Function
+
+Private Function GetQualityDistribution(qualityGrade As String) As Double
+    If m_totalTradesAnalyzed > 0 Then
+        Select Case qualityGrade
+            Case "EXCELLENT": GetQualityDistribution = (m_excellentQualityCount / m_totalTradesAnalyzed) * 100
+            Case "GOOD": GetQualityDistribution = (m_goodQualityCount / m_totalTradesAnalyzed) * 100
+            Case "AVERAGE": GetQualityDistribution = (m_averageQualityCount / m_totalTradesAnalyzed) * 100
+            Case "POOR": GetQualityDistribution = (m_poorQualityCount / m_totalTradesAnalyzed) * 100
+            Case Else: GetQualityDistribution = 0
+        End Select
+    Else
+        GetQualityDistribution = 0
+    End If
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Utility and Helper Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ExtractStrategyFromSignalID(signalID As String) As String
+    ' Extract strategy identifier from signal ID
+    If InStr(signalID, "MAN_") = 1 Then
+        ExtractStrategyFromSignalID = "MANUAL"
+    ElseIf InStr(signalID, "CAL_") = 1 Then
+        ExtractStrategyFromSignalID = "CALENDAR"
+    ElseIf InStr(signalID, "PRC_") = 1 Then
+        ExtractStrategyFromSignalID = "PRICE"
+    Else
+        ExtractStrategyFromSignalID = "UNKNOWN"
+    End If
+End Function
+
+Private Function ExtractSourceFromSignalID(signalID As String) As String
+    ' Extract source type from signal ID
+    ExtractSourceFromSignalID = Left(signalID, 3)
+    If ExtractSourceFromSignalID = "MAN" Then ExtractSourceFromSignalID = "MANUAL"
+    If ExtractSourceFromSignalID = "CAL" Then ExtractSourceFromSignalID = "CALENDAR"
+    If ExtractSourceFromSignalID = "PRC" Then ExtractSourceFromSignalID = "PRICE"
+End Function
+
+Private Function CalculateRiskRewardRatio(trade As StandardTradeResult) As Double
+    ' Simple risk/reward calculation based on entry and exit prices
+    ' In full implementation, would use SL/TP levels
+    If trade.PnLPips <> 0 Then
+        CalculateRiskRewardRatio = Abs(trade.PnLPips / 10) ' Simplified
+    Else
+        CalculateRiskRewardRatio = 1
+    End If
+End Function
+
+Private Function IsTradeAlreadyAnalyzed(tradeID As String) As Boolean
+    ' Check if trade has already been analyzed
+    IsTradeAlreadyAnalyzed = False
+    
+    Dim i As Long
+    For i = 1 To m_analyzedCount
+        If m_analyzedTrades(i).TradeID = tradeID Then
+            IsTradeAlreadyAnalyzed = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Worksheet Interface Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ReadTradeResultFromWorksheet(ws As Worksheet, row As Long, ByRef tradeResult As StandardTradeResult) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ReadTradeResultFromWorksheet = False
+    
+    ' Read trade data from TradeResults worksheet (same structure as execution_monitor)
+    With tradeResult
+        .TradeID = ws.Cells(row, 1).Value
+        .SignalID = ws.Cells(row, 2).Value
+        .Symbol = ws.Cells(row, 3).Value
+        .OrderType = ws.Cells(row, 4).Value
+        .LotSize = ws.Cells(row, 5).Value
+        .EntryPrice = ws.Cells(row, 6).Value
+        .ExitPrice = ws.Cells(row, 7).Value
+        .EntryTime = ws.Cells(row, 8).Value
+        .ExitTime = ws.Cells(row, 9).Value
+        .Duration = ws.Cells(row, 10).Value
+        .PnL = ws.Cells(row, 11).Value
+        .PnLPips = ws.Cells(row, 12).Value
+        .Status = ws.Cells(row, 13).Value
+        .Outcome = ws.Cells(row, 14).Value
+        .Quality = ws.Cells(row, 15).Value
+        .Notes = ws.Cells(row, 16).Value
+    End With
+    
+    ReadTradeResultFromWorksheet = True
+    Exit Function
+    
+ErrorHandler:
+    ReadTradeResultFromWorksheet = False
+End Function
+
+Private Function WriteAnalysisToWorksheet(ws As Worksheet, row As Long, outcome As TradeOutcome) As Boolean
+    On Error GoTo ErrorHandler
+    
+    WriteAnalysisToWorksheet = False
+    
+    ' Update worksheet with analysis results
+    With ws
+        .Cells(row, 14).Value = outcome.Outcome      ' Outcome
+        .Cells(row, 15).Value = outcome.QualityScore ' Quality
+        .Cells(row, 17).Value = outcome.QualityGrade ' Additional column for grade
+        .Cells(row, 18).Value = Now                  ' Analysis timestamp
+    End With
+    
+    WriteAnalysisToWorksheet = True
+    Exit Function
+    
+ErrorHandler:
+    WriteAnalysisToWorksheet = False
+End Function
+
+Private Function ValidateTradeResultsWorksheet() As Boolean
+    On Error GoTo ErrorHandler
+    
+    ValidateTradeResultsWorksheet = False
+    
+    Dim ws As Worksheet
+    Set ws = GetWorksheet("TradeResults")
+    
+    If ws Is Nothing Then
+        LOG_WARN "ValidateTradeResultsWorksheet", "TradeResults worksheet not found"
+        Exit Function
+    End If
+    
+    ' Check if worksheet has the expected structure
+    If ws.Cells(1, 1).Value <> "TradeID" Then
+        LOG_WARN "ValidateTradeResultsWorksheet", "TradeResults worksheet structure invalid"
+        Exit Function
+    End If
+    
+    ValidateTradeResultsWorksheet = True
+    Exit Function
+    
+ErrorHandler:
+    ValidateTradeResultsWorksheet = False
+End Function
+
+Private Function GetWorksheet(worksheetName As String) As Worksheet
+    On Error Resume Next
+    Set GetWorksheet = ThisWorkbook.Worksheets(worksheetName)
+End Function
+
+' ─────────────────────────────────────────────────────────────
+' Initialization and Configuration Functions
+' ─────────────────────────────────────────────────────────────
+Private Function ValidateModuleDependencies() As Boolean
+    On Error Resume Next
+    ValidateModuleDependencies = True ' Simplified for template
+End Function
+
+Private Sub LoadAnalysisHistory()
+    ' Load existing analysis history from persistent storage
+    Debug.Print "LoadAnalysisHistory: Loading analysis history"
+End Sub
+
+Private Sub InitializeAnalysisParameters()
+    ' Initialize analysis parameters from configuration
+    Debug.Print "InitializeAnalysisParameters: Parameters initialized"
+End Sub
+
+Private Sub ClearAnalysisTracking()
+    Dim i As Long
+    For i = 1 To MAX_ANALYSIS_HISTORY
+        Dim emptyRecord As AnalyzedTradeRecord
+        m_analyzedTrades(i) = emptyRecord
+    Next i
+    m_analyzedCount = 0
+End Sub
+
+Private Sub ProcessRemainingTrades()
+    ' Process any remaining unanalyzed trades during shutdown
+    On Error Resume Next
+    
+    Dim processed As Long
+    processed = AnalyzeClosedTrades()
+    
+    If processed > 0 Then
+        Debug.Print "Shutdown: Analyzed " & processed & " remaining trades"
+    End If
+End Sub
+
+Private Sub SaveAnalysisResults()
+    ' Save analysis results for historical tracking
+    Debug.Print "SaveAnalysisResults: Analysis results saved"
+End Sub
+
+Private Sub GenerateFinalAnalysisReport()
+    ' Generate comprehensive final report
+    Dim report As String
+    report = GetPerformanceMetrics()
+    Debug.Print "Final Analysis Report Generated: " & Len(report) & " characters"
+End Sub
+
+' ─────────────────────────────────────────────────────────────
+' Performance and Statistics Functions
+' ─────────────────────────────────────────────────────────────
+Private Sub ResetPerformanceCounters()
+    m_totalTradesAnalyzed = 0
+    m_winningTrades = 0
+    m_losingTrades = 0
+    m_breakevenTrades = 0
+    m_totalPnL = 0
+    m_totalPnLPips = 0
+    
+    m_excellentQualityCount = 0
+    m_goodQualityCount = 0
+    m_averageQualityCount = 0
+    m_poorQualityCount = 0
+    
+    m_averageWinAmount = 0
+    m_averageLossAmount = 0
+    m_averageWinPips = 0
+    m_averageLossPips = 0
+    m_largestWin = 0
+    m_largestLoss = 0
+    m_longestWinStreak = 0
+    m_longestLossStreak = 0
+    m_currentStreak = 0
+    m_currentStreakType = ""
+    
+    m_averageAnalysisTime = 0
+    m_analysisErrors = 0
+    m_lastProcessingBatch = 0
+End Sub
+
+Private Function CalculatePerformanceScore() As Double
+    If m_totalTradesAnalyzed > 0 Then
+        ' Combine win rate and average quality for performance score
+        Dim winRate As Double
+        Dim avgQuality As Double
+        
+        winRate = GetWinRate()
+        avgQuality = GetAverageQuality()
+        
+        CalculatePerformanceScore = (winRate * 0.6) + (avgQuality * 0.4)
+    Else
+        CalculatePerformanceScore = 100
+    End If
+End Function
+
+Private Function CalculateMemoryUsage() As Long
+    CalculateMemoryUsage = m_analyzedCount * 400 ' Rough estimate per analysis record
+End Function
+
+Private Function CalculateHealthScore() As Long
+    Dim score As Long
+    score = 100
+    
+    ' Reduce score based on error rate
+    If m_errorCount > 3 Then score = score - 20
+    If m_errorCount > 10 Then score = score - 40
+    
+    ' Reduce score based on analysis errors
+    If m_totalTradesAnalyzed > 0 Then
+        Dim analysisErrorRate As Double
+        analysisErrorRate = (m_analysisErrors / m_totalTradesAnalyzed) * 100
+        If analysisErrorRate > 5 Then score = score - 25
+        If analysisErrorRate > 15 Then score = score - 50
+    End If
+    
+    ' Bonus for good performance metrics
+    If m_totalTradesAnalyzed >= MIN_TRADES_FOR_ANALYSIS Then
+        If GetWinRate() > 60 Then score = score + 10
+        If GetAverageQuality() > 70 Then score = score + 10
+    End If
+    
+    ' Reduce score if status is not active
+    If m_currentStatus <> ACTIVE Then score = score - 40
+    
+    If score < 0 Then score = 0
+    CalculateHealthScore = score
+End Function
+
+' ═══════════════════════════════════════════════════════════════
+' LOGGING INTEGRATION SECTION (MANDATORY)
+' ═══════════════════════════════════════════════════════════════
+
+Private Sub LOG_ENTER(functionName As String)
+    Debug.Print "[" & MODULE_NAME & "] ENTER: " & functionName
+End Sub
+
+Private Sub LOG_EXIT(functionName As String, Optional result As String = "")
+    Debug.Print "[" & MODULE_NAME & "] EXIT: " & functionName & " " & result
+End Sub
+
+Private Sub LOG_ERR(functionName As String, Optional customMessage As String = "")
+    Dim l_message As String
+    If Len(customMessage) > 0 Then
+        l_message = customMessage & " | VBA Error: " & Err.Description
+    Else
+        l_message = Err.Description
+    End If
+    Debug.Print "[" & MODULE_NAME & "] ERROR in " & functionName & ": " & l_message
+End Sub
+
+Private Sub LOG_WARN(functionName As String, warningMessage As String)
+    Debug.Print "[" & MODULE_NAME & "] WARN in " & functionName & ": " & warningMessage
+End Sub
+
+Private Sub LOG_CRITICAL(functionName As String, criticalMessage As String)
+    Debug.Print "[" & MODULE_NAME & "] CRITICAL in " & functionName & ": " & criticalMessage
+End Sub
+
+Private Function PERF_START() As Double
+    PERF_START = Timer
+End Function
+
+Private Sub PERF_END(functionName As String, startTime As Double)
+    Dim l_executionTime As Long
+    l_executionTime = (Timer - startTime) * 1000
+    Debug.Print "[" & MODULE_NAME & "] PERF: " & functionName & " took " & l_executionTime & "ms"
+End Sub
+
+' ═══════════════════════════════════════════════════════════════
+' END OF MODULE: outcome_analyzer.bas
+' ═══════════════════════════════════════════════════════════════

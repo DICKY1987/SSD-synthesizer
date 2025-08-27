@@ -1,0 +1,980 @@
+# file_tree_structure.yaml
+# MT4 Trading System - Complete Project Structure
+# Auto-generated comprehensive file tree for Python manipulation
+
+project_info:
+  name: "MT4 Trading System"
+  owner: "Richard Wilks"
+  version: "1.0.0"
+  created_date: "2025-06-20"
+  base_path: "C:\\Users\\Richard Wilks\\TradingSystem"
+  mt4_terminal: "C:\\Users\\Richard Wilks\\AppData\\Roaming\\MetaQuotes\\Terminal\\F2262CFAFF47C27887389DAB2852351A"
+  description: "Comprehensive automated trading system with MT4 integration and Python backend"
+  
+  # Currency pairs supported (30 total)
+  supported_pairs:
+    major: ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD"]
+    eur_crosses: ["EURGBP", "EURJPY", "EURCHF", "EURCAD", "EURAUD", "EURNZD"]
+    gbp_crosses: ["GBPJPY", "GBPCHF", "GBPCAD", "GBPAUD", "GBPNZD"]
+    jpy_crosses: ["JPYCHF", "JPYCAD", "JPYAUD", "JPYNZD"]
+    other_crosses: ["CHFCAD", "CHFAUD", "CHFNZD", "CADAUD", "CADNZD", "AUDNZD"]
+    metals: ["XAUUSD", "XAGUSD"]
+
+structure:
+  root:
+    type: "directory"
+    path: "C:\\Users\\Richard Wilks\\TradingSystem"
+    description: "Project root directory"
+    children:
+      
+      # === SOURCE CODE DIRECTORIES ===
+      Source:
+        type: "directory" 
+        description: "Development source code"
+        children:
+          MQL4:
+            type: "directory"
+            description: "MT4 MQL4 source files"
+            children:
+              Experts:
+                type: "directory"
+                description: "Expert Advisor source files"
+                files:
+                  - name: "10ParameterEA.mq4"
+                    description: "Main Expert Advisor with 10 configurable parameter sets"
+                    type: "mql4_expert"
+                    dependencies: ["CommunicationManager.mqh", "FileManager.mqh", "TradingCore.mqh"]
+                    deployment_target: "mt4_experts"
+                    requires_compilation: true
+                    
+              Include:
+                type: "directory"
+                description: "MQL4 include files and libraries"
+                files:
+                  - name: "CommunicationManager.mqh"
+                    description: "Communication hierarchy manager for socket/pipe/file communication"
+                    type: "mql4_include" 
+                    deployment_target: "mt4_includes"
+                  - name: "NamedPipeManager.mqh"
+                    description: "Named pipe abstraction layer"
+                    type: "mql4_include"
+                    deployment_target: "mt4_includes"
+                  - name: "FileManager.mqh"
+                    description: "Enhanced CSV file handling"
+                    type: "mql4_include"
+                    deployment_target: "mt4_includes"
+                  - name: "TradingCore.mqh"
+                    description: "Core trading logic and risk management"
+                    type: "mql4_include"
+                    deployment_target: "mt4_includes"
+                  - name: "Logging.mqh"
+                    description: "Centralized logging utility"
+                    type: "mql4_include"
+                    deployment_target: "mt4_includes"
+                    
+              Files:
+                type: "directory"
+                description: "Configuration files for MT4"
+                files:
+                  - name: "all_10_parameter_sets.csv"
+                    description: "EA parameter configurations (10 sets)"
+                    type: "csv_data"
+                    deployment_target: "mt4_files"
+                  - name: "signal_id_mapping.csv"
+                    description: "Signal ID to parameter set mapping"
+                    type: "csv_data"
+                    deployment_target: "mt4_files"
+                  - name: "reentry_close_result_mapping.csv"
+                    description: "Close result to reentry parameter mapping"
+                    type: "csv_data"
+                    deployment_target: "mt4_files"
+                  - name: "current_signal.csv"
+                    description: "Current signal data for EA processing"
+                    type: "csv_data"
+                    deployment_target: "mt4_files"
+
+          DLL:
+            type: "directory"
+            description: "C++ DLL bridge components"
+            children:
+              SocketBridge:
+                type: "directory"
+                description: "Socket communication bridge DLL"
+                files:
+                  - name: "SocketBridge.cpp"
+                    description: "Main DLL implementation for MT4-Python communication"
+                    type: "cpp_source"
+                    requires_compilation: true
+                  - name: "SocketBridge.h"
+                    description: "DLL header definitions"
+                    type: "cpp_header"
+                  - name: "SocketBridge.def"
+                    description: "Module definition file"
+                    type: "cpp_def"
+                  - name: "CMakeLists.txt"
+                    description: "Cross-platform build configuration"
+                    type: "cmake_config"
+                children:
+                  build:
+                    type: "directory"
+                    description: "DLL build output directory"
+                    files:
+                      - name: "SocketBridge.dll"
+                        description: "Compiled communication bridge"
+                        type: "dll_binary"
+                        deployment_target: "mt4_libraries"
+
+      # === PYTHON BACKEND ===
+      Python:
+        type: "directory"
+        description: "Python trading server and components"
+        children:
+          src:
+            type: "directory"
+            description: "Python source code"
+            children:
+              services:
+                type: "directory"
+                description: "Core Python services"
+                files:
+                  - name: "trading_server.py"
+                    description: "Main Python trading server"
+                    type: "python_service"
+                    dependencies: ["signal_generator.py", "database_manager.py", "config_manager.py"]
+                  - name: "signal_generator.py"
+                    description: "Trading signal generation service"
+                    type: "python_service"
+                  - name: "message_broker.py"
+                    description: "Message routing and communication"
+                    type: "python_service"
+                  - name: "database_manager.py"
+                    description: "Database operations manager"
+                    type: "python_service"
+                  - name: "monitoring.py"
+                    description: "System health monitoring"
+                    type: "python_service"
+                    
+              utils:
+                type: "directory"
+                description: "Python utilities"
+                files:
+                  - name: "config_manager.py"
+                    description: "Configuration management utility"
+                    type: "python_utility"
+                  - name: "logger_setup.py"
+                    description: "Centralized logging setup"
+                    type: "python_utility"
+                  - name: "path_utils.py"
+                    description: "Path management utilities"
+                    type: "python_utility"
+                    
+              models:
+                type: "directory"
+                description: "Data models and schemas"
+                files:
+                  - name: "signal_models.py"
+                    description: "Signal data models"
+                    type: "python_model"
+                  - name: "trade_models.py"
+                    description: "Trade data models"
+                    type: "python_model"
+                    
+          scripts:
+            type: "directory"
+            description: "Python utility scripts"
+            files:
+              - name: "test_signal_generator.py"
+                description: "Signal generation testing script"
+                type: "python_script"
+              - name: "initialize_database.py"
+                description: "Database initialization script"
+                type: "python_script"
+              - name: "monitor_dashboard.py"
+                description: "System monitoring dashboard"
+                type: "python_script"
+                
+          logs:
+            type: "directory"
+            description: "Python application logs"
+            files:
+              - name: "trading_server.log"
+                description: "Main server log file"
+                type: "log_file"
+                
+        files:
+          - name: "requirements.txt"
+            description: "Python dependencies specification"
+            type: "python_requirements"
+
+      # === CONFIGURATION SYSTEM ===
+      Config:
+        type: "directory"
+        description: "System configuration files"
+        children:
+          pairs:
+            type: "directory"
+            description: "Per-pair configuration files (30 files)"
+            files:
+              # Major pairs
+              - name: "EURUSD.yaml"
+                description: "EUR/USD pair configuration"
+                type: "yaml_pair_config"
+              - name: "GBPUSD.yaml"
+                description: "GBP/USD pair configuration"
+                type: "yaml_pair_config"
+              - name: "USDJPY.yaml"
+                description: "USD/JPY pair configuration"
+                type: "yaml_pair_config"
+              - name: "USDCHF.yaml"
+                description: "USD/CHF pair configuration"
+                type: "yaml_pair_config"
+              - name: "USDCAD.yaml"
+                description: "USD/CAD pair configuration"
+                type: "yaml_pair_config"
+              - name: "AUDUSD.yaml"
+                description: "AUD/USD pair configuration"
+                type: "yaml_pair_config"
+              - name: "NZDUSD.yaml"
+                description: "NZD/USD pair configuration"
+                type: "yaml_pair_config"
+              # EUR crosses
+              - name: "EURGBP.yaml"
+                description: "EUR/GBP pair configuration"
+                type: "yaml_pair_config"
+              - name: "EURJPY.yaml"
+                description: "EUR/JPY pair configuration"
+                type: "yaml_pair_config"
+              - name: "EURCHF.yaml"
+                description: "EUR/CHF pair configuration"
+                type: "yaml_pair_config"
+              - name: "EURCAD.yaml"
+                description: "EUR/CAD pair configuration"
+                type: "yaml_pair_config"
+              - name: "EURAUD.yaml"
+                description: "EUR/AUD pair configuration"
+                type: "yaml_pair_config"
+              - name: "EURNZD.yaml"
+                description: "EUR/NZD pair configuration"
+                type: "yaml_pair_config"
+              # GBP crosses
+              - name: "GBPJPY.yaml"
+                description: "GBP/JPY pair configuration"
+                type: "yaml_pair_config"
+              - name: "GBPCHF.yaml"
+                description: "GBP/CHF pair configuration"
+                type: "yaml_pair_config"
+              - name: "GBPCAD.yaml"
+                description: "GBP/CAD pair configuration"
+                type: "yaml_pair_config"
+              - name: "GBPAUD.yaml"
+                description: "GBP/AUD pair configuration"
+                type: "yaml_pair_config"
+              - name: "GBPNZD.yaml"
+                description: "GBP/NZD pair configuration"
+                type: "yaml_pair_config"
+              # JPY crosses
+              - name: "JPYCHF.yaml"
+                description: "JPY/CHF pair configuration"
+                type: "yaml_pair_config"
+              - name: "JPYCAD.yaml"
+                description: "JPY/CAD pair configuration"
+                type: "yaml_pair_config"
+              - name: "JPYAUD.yaml"
+                description: "JPY/AUD pair configuration"
+                type: "yaml_pair_config"
+              - name: "JPYNZD.yaml"
+                description: "JPY/NZD pair configuration"
+                type: "yaml_pair_config"
+              # Other crosses
+              - name: "CHFCAD.yaml"
+                description: "CHF/CAD pair configuration"
+                type: "yaml_pair_config"
+              - name: "CHFAUD.yaml"
+                description: "CHF/AUD pair configuration"
+                type: "yaml_pair_config"
+              - name: "CHFNZD.yaml"
+                description: "CHF/NZD pair configuration"
+                type: "yaml_pair_config"
+              - name: "CADAUD.yaml"
+                description: "CAD/AUD pair configuration"
+                type: "yaml_pair_config"
+              - name: "CADNZD.yaml"
+                description: "CAD/NZD pair configuration"
+                type: "yaml_pair_config"
+              - name: "AUDNZD.yaml"
+                description: "AUD/NZD pair configuration"
+                type: "yaml_pair_config"
+              # Metals
+              - name: "XAUUSD.yaml"
+                description: "Gold pair configuration"
+                type: "yaml_pair_config"
+              - name: "XAGUSD.yaml"
+                description: "Silver pair configuration"
+                type: "yaml_pair_config"
+                
+        files:
+          - name: "server_config.yaml"
+            description: "Python server configuration"
+            type: "yaml_config"
+          - name: "logging_config.yaml"
+            description: "Logging configuration"
+            type: "yaml_config"
+          - name: "system_config.yaml"
+            description: "Global system configuration"
+            type: "yaml_config"
+          - name: "broker_settings.yaml"
+            description: "Broker-specific settings"
+            type: "yaml_config"
+          - name: "claude_trading_config.yaml"
+            description: "Claude AI trading configuration"
+            type: "yaml_config"
+          - name: "docker_config.yaml"
+            description: "Docker deployment configuration"
+            type: "yaml_config"
+
+      # === DATABASE SYSTEM ===
+      Database:
+        type: "directory"
+        description: "Database files and schemas"
+        children:
+          schemas:
+            type: "directory"
+            description: "Database schema definitions"
+            files:
+              - name: "trading_schema.sql"
+                description: "Main database schema for all 30 pairs"
+                type: "sql_schema"
+              - name: "global_tables.sql"
+                description: "Global system tables schema"
+                type: "sql_schema"
+              - name: "pair_table_template.sql"
+                description: "Template for pair-specific tables"
+                type: "sql_template"
+              - name: "index_template.sql"
+                description: "Index creation templates"
+                type: "sql_template"
+              - name: "trigger_template.sql"
+                description: "Database trigger templates"
+                type: "sql_template"
+                
+          data:
+            type: "directory"
+            description: "Database initialization data"
+            files:
+              - name: "initial_data.sql"
+                description: "Initial database data population"
+                type: "sql_data"
+                
+        files:
+          - name: "trading_system.db"
+            description: "SQLite database file (runtime generated)"
+            type: "database_file"
+
+      # === POWERSHELL SCRIPTS AND MODULES ===
+      Scripts:
+        type: "directory"
+        description: "PowerShell deployment and management scripts"
+        children:
+          Modules:
+            type: "directory"
+            description: "PowerShell modules"
+            files:
+              - name: "PathManager.psm1"
+                description: "Path management PowerShell module"
+                type: "powershell_module"
+                dependencies: ["paths_config.txt"]
+              - name: "TradingSystem.Core.psm1"
+                description: "Core trading system module"
+                type: "powershell_module"
+              - name: "TradingSystem.ServiceManager.psm1"
+                description: "Service management module"
+                type: "powershell_module"
+              - name: "TradingSystem.Configuration.psm1"
+                description: "Configuration management module"
+                type: "powershell_module"
+                
+        files:
+          - name: "Initialize-Paths.ps1"
+            description: "Path initialization script"
+            type: "powershell_script"
+          - name: "Deploy-TradingSystem.ps1"
+            description: "Main system deployment script"
+            type: "powershell_script"
+          - name: "Deploy_MT4_Components.ps1"
+            description: "MT4 component deployment"
+            type: "powershell_script"
+          - name: "Deploy-DatabaseSchema.ps1"
+            description: "Database schema deployment"
+            type: "powershell_script"
+          - name: "Compile_All.ps1"
+            description: "Compile all MQL4 files"
+            type: "powershell_script"
+          - name: "docker_deploy.ps1"
+            description: "Docker deployment orchestration"
+            type: "powershell_script"
+          - name: "initialize_database.ps1"
+            description: "Database initialization"
+            type: "powershell_script"
+
+      # === BUILD SYSTEM ===
+      Build:
+        type: "directory"
+        description: "Build artifacts and scripts"
+        children:
+          logs:
+            type: "directory"
+            description: "Build logs"
+            files:
+              - name: "compilation.log"
+                description: "MQL4 compilation log"
+                type: "log_file"
+              - name: "deployment.log"
+                description: "Deployment process log"
+                type: "log_file"
+                
+          scripts:
+            type: "directory"
+            description: "Build automation scripts"
+            files:
+              - name: "build_dll.bat"
+                description: "DLL compilation batch script"
+                type: "batch_script"
+              - name: "deploy_ea.ps1"
+                description: "EA deployment PowerShell script"
+                type: "powershell_script"
+              - name: "compile_ea.ps1"
+                description: "EA compilation helper"
+                type: "powershell_script"
+
+      # === TESTING FRAMEWORK ===
+      Tests:
+        type: "directory"
+        description: "Testing framework and test files"
+        children:
+          MQL4:
+            type: "directory"
+            description: "MQL4 testing files"
+            files:
+              - name: "test_trading_logic.mq4"
+                description: "MQL4 strategy tester scripts"
+                type: "mql4_test"
+                
+          Python:
+            type: "directory"
+            description: "Python unit tests"
+            files:
+              - name: "test_server.py"
+                description: "Python server component tests"
+                type: "python_test"
+              - name: "test_communication.py"
+                description: "Communication layer tests"
+                type: "python_test"
+                
+          Integration:
+            type: "directory"
+            description: "Integration testing"
+            files:
+              - name: "integration_test_suite.py"
+                description: "End-to-end system testing"
+                type: "python_test"
+                
+          CplusPlus:
+            type: "directory"
+            description: "C++ DLL testing"
+            files:
+              - name: "test_communication.cpp"
+                description: "Unit tests for DLL functions"
+                type: "cpp_test"
+
+      # === DOCUMENTATION ===
+      Documentation:
+        type: "directory"
+        description: "Project documentation"
+        files:
+          - name: "README.md"
+            description: "Project overview and quick start"
+            type: "markdown_doc"
+          - name: "UserManual.txt"
+            description: "Comprehensive user manual"
+            type: "text_doc"
+          - name: "Installation.txt"
+            description: "Step-by-step installation guide"
+            type: "text_doc"
+          - name: "Changelog.md"
+            description: "Version history and changes"
+            type: "markdown_doc"
+          - name: "API_Reference.txt"
+            description: "Complete API documentation"
+            type: "text_doc"
+          - name: "DEPLOYMENT_GUIDE.md"
+            description: "Deployment instructions"
+            type: "markdown_doc"
+          - name: "DEVELOPER_GUIDE.md"
+            description: "Development environment setup"
+            type: "markdown_doc"
+          - name: "Socket-Based EA System File Specification.md"
+            description: "Complete file specification"
+            type: "markdown_doc"
+          - name: "MT4 Trading System - Complete File Paths Reference.md"
+            description: "Path reference documentation"
+            type: "markdown_doc"
+
+      # === LOGS DIRECTORY ===
+      Logs:
+        type: "directory"
+        description: "System-wide log files"
+        files:
+          - name: "installation.log"
+            description: "Installation process logs"
+            type: "log_file"
+          - name: "system.log"
+            description: "System-wide event logs"
+            type: "log_file"
+          - name: "deployment.log"
+            description: "Deployment activity logs"
+            type: "log_file"
+
+      # === UTILITIES AND TOOLS ===
+      Tools:
+        type: "directory"
+        description: "Development and maintenance tools"
+        files:
+          - name: "start_python_server.bat"
+            description: "Python server launcher"
+            type: "batch_script"
+          - name: "Install_to_MT4.bat"
+            description: "MT4 installation batch script"
+            type: "batch_script"
+
+      # === BACKUP SYSTEM ===
+      Backups:
+        type: "directory"
+        description: "System backups"
+        children:
+          Daily:
+            type: "directory"
+            description: "Daily automated backups"
+          Manual:
+            type: "directory"
+            description: "Manual backup storage"
+
+      # === PROJECT CONFIGURATION FILES ===
+      files:
+        - name: "paths_config.txt"
+          description: "Master path configuration file"
+          type: "path_config"
+        - name: "paths_config.yaml"
+          description: "YAML version of path configuration"
+          type: "yaml_config"
+        - name: ".gitignore"
+          description: "Git ignore file for version control"
+          type: "git_config"
+        - name: "docker-compose.yml"
+          description: "Docker Compose configuration"
+          type: "docker_file"
+        - name: "Dockerfile"
+          description: "Docker container definition"
+          type: "docker_file"
+
+# === FILE TYPE DEFINITIONS ===
+file_types:
+  # MQL4 File Types
+  mql4_expert:
+    extension: ".mq4"
+    category: "expert_advisor"
+    deployment_target: "mt4_experts"
+    requires_compilation: true
+    compiled_extension: ".ex4"
+    
+  mql4_include:
+    extension: ".mqh"
+    category: "include_library"
+    deployment_target: "mt4_includes"
+    requires_compilation: false
+    
+  mql4_test:
+    extension: ".mq4"
+    category: "test_script"
+    deployment_target: "mt4_experts"
+    requires_compilation: true
+
+  # Python File Types
+  python_service:
+    extension: ".py"
+    category: "service"
+    deployment_target: "python_production"
+    requires_compilation: false
+    dependencies: ["python_requirements"]
+    
+  python_utility:
+    extension: ".py"
+    category: "utility"
+    deployment_target: "python_production"
+    requires_compilation: false
+    
+  python_model:
+    extension: ".py"
+    category: "data_model"
+    deployment_target: "python_production"
+    requires_compilation: false
+    
+  python_test:
+    extension: ".py"
+    category: "test_suite"
+    deployment_target: "test_environment"
+    requires_compilation: false
+    
+  python_script:
+    extension: ".py"
+    category: "utility_script"
+    deployment_target: "python_production"
+    requires_compilation: false
+    
+  python_requirements:
+    extension: ".txt"
+    category: "dependency_spec"
+    deployment_target: "python_environment"
+    requires_compilation: false
+
+  # C++ File Types
+  cpp_source:
+    extension: ".cpp"
+    category: "source_code"
+    deployment_target: "build_directory"
+    requires_compilation: true
+    compiled_extension: ".dll"
+    
+  cpp_header:
+    extension: ".h"
+    category: "header_file"
+    deployment_target: "build_directory"
+    requires_compilation: false
+    
+  cpp_def:
+    extension: ".def"
+    category: "module_definition"
+    deployment_target: "build_directory"
+    requires_compilation: false
+    
+  cpp_test:
+    extension: ".cpp"
+    category: "test_suite"
+    deployment_target: "test_build"
+    requires_compilation: true
+    
+  dll_binary:
+    extension: ".dll"
+    category: "compiled_library"
+    deployment_target: "mt4_libraries"
+    requires_compilation: false
+
+  # Configuration File Types
+  yaml_config:
+    extension: ".yaml"
+    category: "configuration"
+    deployment_target: "config_directory"
+    requires_compilation: false
+    validation_schema: true
+    
+  yaml_pair_config:
+    extension: ".yaml"
+    category: "pair_configuration"
+    deployment_target: "config_directory"
+    requires_compilation: false
+    validation_schema: true
+    
+  csv_data:
+    extension: ".csv"
+    category: "data_file"
+    deployment_target: "mt4_files"
+    requires_compilation: false
+    
+  path_config:
+    extension: ".txt"
+    category: "path_configuration"
+    deployment_target: "project_root"
+    requires_compilation: false
+
+  # Database File Types
+  sql_schema:
+    extension: ".sql"
+    category: "database_schema"
+    deployment_target: "database_directory"
+    requires_compilation: false
+    
+  sql_template:
+    extension: ".sql"
+    category: "template_file"
+    deployment_target: "database_directory"
+    requires_compilation: false
+    
+  sql_data:
+    extension: ".sql"
+    category: "data_population"
+    deployment_target: "database_directory"
+    requires_compilation: false
+    
+  database_file:
+    extension: ".db"
+    category: "database"
+    deployment_target: "database_directory"
+    requires_compilation: false
+
+  # PowerShell File Types
+  powershell_script:
+    extension: ".ps1"
+    category: "automation_script"
+    deployment_target: "scripts_directory"
+    requires_compilation: false
+    execution_policy: "RemoteSigned"
+    
+  powershell_module:
+    extension: ".psm1"
+    category: "powershell_module"
+    deployment_target: "modules_directory"
+    requires_compilation: false
+    execution_policy: "RemoteSigned"
+
+  # Build System File Types
+  batch_script:
+    extension: ".bat"
+    category: "batch_automation"
+    deployment_target: "scripts_directory"
+    requires_compilation: false
+    
+  cmake_config:
+    extension: ".txt"
+    category: "build_configuration"
+    deployment_target: "build_directory"
+    requires_compilation: false
+
+  # Documentation File Types
+  markdown_doc:
+    extension: ".md"
+    category: "documentation"
+    deployment_target: "documentation_directory"
+    requires_compilation: false
+    
+  text_doc:
+    extension: ".txt"
+    category: "documentation"
+    deployment_target: "documentation_directory"
+    requires_compilation: false
+
+  # Container File Types  
+  docker_file:
+    extension: ".yml"
+    category: "container_config"
+    deployment_target: "deployment_directory"
+    requires_compilation: false
+    
+  git_config:
+    extension: ""
+    category: "version_control"
+    deployment_target: "project_root"
+    requires_compilation: false
+
+  # Log File Types
+  log_file:
+    extension: ".log"
+    category: "log_data"
+    deployment_target: "logs_directory"
+    requires_compilation: false
+
+# === BASE PATH DEFINITIONS ===
+base_paths:
+  project_root: "C:\\Users\\Richard Wilks\\TradingSystem"
+  mt4_terminal: "C:\\Users\\Richard Wilks\\AppData\\Roaming\\MetaQuotes\\Terminal\\F2262CFAFF47C27887389DAB2852351A"
+  
+  # Source paths (development)
+  mql4_source: "{project_root}\\Source\\MQL4"
+  python_source: "{project_root}\\Python\\src"
+  cpp_source: "{project_root}\\Source\\DLL"
+  config_source: "{project_root}\\Config"
+  scripts_source: "{project_root}\\Scripts"
+  
+  # MT4 runtime paths
+  mt4_mql4: "{mt4_terminal}\\MQL4"
+  mt4_experts: "{mt4_terminal}\\MQL4\\Experts"
+  mt4_includes: "{mt4_terminal}\\MQL4\\Include"
+  mt4_libraries: "{mt4_terminal}\\MQL4\\Libraries"
+  mt4_files: "{mt4_terminal}\\MQL4\\Files"
+  
+  # Build and output paths
+  build_output: "{project_root}\\Build"
+  logs_directory: "{project_root}\\Logs"
+  database_directory: "{project_root}\\Database"
+  documentation_directory: "{project_root}\\Documentation"
+
+# === DEPLOYMENT RULES ===
+deployment_rules:
+  # Development to Runtime Deployment
+  source_to_runtime:
+    - source_pattern: "Source/MQL4/Experts/*.mq4"
+      target_pattern: "MT4/MQL4/Experts/*.mq4"
+      action: "copy_and_compile"
+      post_action: "deploy_ex4"
+      
+    - source_pattern: "Source/MQL4/Include/*.mqh"
+      target_pattern: "MT4/MQL4/Include/*.mqh"
+      action: "copy"
+      
+    - source_pattern: "Source/MQL4/Files/*.csv"
+      target_pattern: "MT4/MQL4/Files/*.csv"
+      action: "copy"
+      
+    - source_pattern: "Source/DLL/SocketBridge/build/*.dll"
+      target_pattern: "MT4/MQL4/Libraries/*.dll"
+      action: "copy"
+      
+    - source_pattern: "Python/src/**/*.py"
+      target_pattern: "Python/production/**/*.py"
+      action: "copy"
+      validation: "syntax_check"
+
+  # Compilation Rules
+  compilation:
+    mql4_to_ex4:
+      source_extension: ".mq4"
+      target_extension: ".ex4"
+      compiler: "metaeditor.exe"
+      compiler_args: "/compile /inc:{mt4_includes}"
+      
+    cpp_to_dll:
+      source_extension: ".cpp"
+      target_extension: ".dll"
+      compiler: "cl.exe"
+      build_system: "cmake"
+      
+  # Validation Rules
+  validation:
+    pre_deployment:
+      - check_file_syntax
+      - validate_dependencies
+      - verify_target_directories
+      
+    post_deployment:
+      - verify_file_integrity
+      - test_basic_functionality
+      - check_log_files
+
+# === DEPENDENCY MAPPING ===
+dependencies:
+  expert_advisors:
+    "10ParameterEA.mq4":
+      includes: ["CommunicationManager.mqh", "FileManager.mqh", "TradingCore.mqh"]
+      data_files: ["all_10_parameter_sets.csv", "signal_id_mapping.csv", "reentry_close_result_mapping.csv"]
+      dlls: ["SocketBridge.dll"]
+      
+  python_services:
+    "trading_server.py":
+      modules: ["signal_generator.py", "database_manager.py", "config_manager.py", "logger_setup.py"]
+      configs: ["server_config.yaml", "logging_config.yaml", "system_config.yaml"]
+      database: ["trading_system.db"]
+      
+  communication_layer:
+    "SocketBridge.dll":
+      source_files: ["SocketBridge.cpp", "SocketBridge.h", "SocketBridge.def"]
+      build_tools: ["cmake", "visual_studio_build_tools"]
+
+# === BUILD SEQUENCES ===
+build_sequences:
+  complete_system_build:
+    - name: "Validate Prerequisites"
+      action: "check_dependencies"
+      required_tools: ["python", "visual_studio", "mt4", "powershell"]
+      
+    - name: "Build C++ DLL"
+      action: "compile_cpp"
+      source: "Source/DLL/SocketBridge"
+      output: "Source/DLL/SocketBridge/build/SocketBridge.dll"
+      
+    - name: "Deploy DLL to MT4"
+      action: "copy_file"
+      source: "Source/DLL/SocketBridge/build/SocketBridge.dll"
+      target: "MT4/MQL4/Libraries/SocketBridge.dll"
+      
+    - name: "Deploy MQL4 Files"
+      action: "deploy_mql4"
+      source: "Source/MQL4"
+      target: "MT4/MQL4"
+      
+    - name: "Compile Expert Advisors"
+      action: "compile_mql4"
+      files: ["10ParameterEA.mq4"]
+      
+    - name: "Deploy Configuration Files"
+      action: "deploy_configs"
+      source: "Config"
+      target: "MT4/MQL4/Files"
+      
+    - name: "Initialize Database"
+      action: "run_script"
+      script: "Python/scripts/initialize_database.py"
+      
+    - name: "Deploy Python Components"
+      action: "deploy_python"
+      source: "Python/src"
+      target: "Python/production"
+      
+    - name: "Validate System"
+      action: "run_tests"
+      test_suite: "Tests/Integration/integration_test_suite.py"
+
+# === MONITORING AND MAINTENANCE ===
+monitoring:
+  file_watchers:
+    - path: "{project_root}\\Source\\MQL4\\**\\*.mq4"
+      action: "auto_compile_and_deploy"
+      
+    - path: "{project_root}\\Config\\**\\*.yaml"
+      action: "validate_and_deploy"
+      
+    - path: "{project_root}\\Python\\src\\**\\*.py"
+      action: "syntax_check_and_deploy"
+      
+  health_checks:
+    - name: "File Integrity Check"
+      frequency: "daily"
+      action: "verify_file_checksums"
+      
+    - name: "Configuration Validation"
+      frequency: "on_change"
+      action: "validate_yaml_schemas"
+      
+    - name: "Dependency Check"
+      frequency: "weekly"
+      action: "verify_all_dependencies"
+
+# === BACKUP AND RECOVERY ===
+backup_strategy:
+  automated_backups:
+    frequency: "daily"
+    retention: "30_days"
+    include_patterns:
+      - "Source/**/*"
+      - "Config/**/*"
+      - "Database/**/*"
+      - "Scripts/**/*"
+    exclude_patterns:
+      - "Logs/**/*"
+      - "Build/**/*"
+      - "**/*.tmp"
+      
+  manual_backups:
+    before_major_changes: true
+    before_deployment: true
+    retention: "indefinite"
+    
+  recovery_procedures:
+    - name: "Source Code Recovery"
+      action: "restore_from_backup"
+      priority: "critical"
+      
+    - name: "Configuration Recovery"
+      action: "restore_and_validate"
+      priority: "high"
+      
+    - name: "Database Recovery"
+      action: "restore_with_integrity_check"
+      priority: "high"

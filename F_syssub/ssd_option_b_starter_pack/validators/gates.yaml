@@ -1,0 +1,17 @@
+# Enterprise acceptance gates
+gates:
+  - id: "G1-Coverage"
+    description: ">=95% of required fields present"
+    check: "coverage>=0.95"
+  - id: "G2-Confidence"
+    description: "Median field confidence >= 0.80; no critical < 0.60"
+    check: "median_conf>=0.80 && min_conf_critical>=0.60"
+  - id: "G3-Conflicts"
+    description: "No open contradictions for defined pairs"
+    check: "contradictions==0"
+  - id: "G4-Replayability"
+    description: "Replay inputs + time sync defined (6.5) and immutable logs (6.6)"
+    check: "has_65 && has_66"
+  - id: "G5-Backtest"
+    description: "5.7.1 performance meets minimum thresholds"
+    check: "meets_perf_thresholds"

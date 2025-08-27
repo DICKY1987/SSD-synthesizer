@@ -1,0 +1,534 @@
+//+------------------------------------------------------------------+
+//| Enhanced HUEY_P Signal Processing Module                         |
+//| Integrates with Python Enhanced Signal System                    |
+//+------------------------------------------------------------------+
+
+// Enhanced signal processing functions for the HUEY_P EA
+// Integrates with the sophisticated Python signal generation system
+
+#define SIGNAL_SOURCE_ENHANCED_PYTHON  4
+#define SIGNAL_TYPE_STRADDLE_ENHANCED  "STRADDLE_ENHANCED"
+#define SIGNAL_TYPE_STRENGTH_BASED     "STRENGTH_BASED"
+
+// Structure for enhanced signal data
+struct EnhancedSignalData
+{
+    string signal_id;
+    string symbol;
+    string direction;
+    string signal_type;
+    double confidence;
+    
+    // Enhanced metadata
+    string event_currency;
+    string counter_currency;
+    double event_strength;
+    double counter_strength;
+    double strength_differential;
+    string strategy_type;
+    string extreme_justification;
+    double fundamental_support;
+    
+    // Straddle parameters
+    double buy_distance;
+    double sell_distance;
+    double stop_loss_pips;
+    double take_profit_pips;
+    double calculated_lot_size;
+    int expiry_hours;
+    
+    datetime timestamp;
+    bool is_processed;
+};
+
+// Global variables for enhanced signal processing
+EnhancedSignalData g_enhancedSignals[100];
+int g_enhancedSignalCount = 0;
+datetime g_lastEnhancedSignalCheck = 0;
+string g_enhancedSignalFile = "enhanced_signals.csv";
+
+//+------------------------------------------------------------------+
+//| Enhanced Signal Processing Functions                              |
+//+------------------------------------------------------------------+
+
+//--- Read enhanced signals from Python system
+bool ReadEnhancedSignalsFromFile()
+{
+    string filename = "MQL4\\Files\\" + g_enhancedSignalFile;
+    int handle = FileOpen(g_enhancedSignalFile, FILE_READ|FILE_CSV|FILE_COMMON);
+    
+    if(handle == INVALID_HANDLE)
+    {
+        // Check for dated signal files
+        string dateStr = TimeToString(TimeCurrent(), TIME_DATE);
+        StringReplace(dateStr, ".", "");
+        string datedFile = "signals_" + dateStr + ".csv";
+        handle = FileOpen(datedFile, FILE_READ|FILE_CSV|FILE_COMMON);
+        
+        if(handle == INVALID_HANDLE)
+        {
+            return false;
+        }
+    }
+    
+    // Reset signal count
+    g_enhancedSignalCount = 0;
+    
+    // Skip header if exists
+    if(!FileIsEnding(handle))
+    {
+        string header = FileReadString(handle);
+        if(StringFind(header, "timestamp") >= 0)
+        {
+            // Header found, continue to data
+        }
+        else
+        {
+            // No header, reset file position
+            FileSeek(handle, 0, SEEK_SET);
+        }
+    }
+    
+    // Read enhanced signal data
+    while(!FileIsEnding(handle) && g_enhancedSignalCount < 100)
+    {
+        EnhancedSignalData signal;
+        
+        // Read core signal data
+        string timestampStr = FileReadString(handle);
+        signal.signal_id = FileReadString(handle);
+        signal.symbol = FileReadString(handle);
+        signal.direction = FileReadString(handle);
+        signal.signal_type = FileReadString(handle);
+        signal.confidence = StringToDouble(FileReadString(handle));
+        
+        // Read enhanced metadata
+        signal.event_currency = FileReadString(handle);
+        signal.counter_currency = FileReadString(handle);
+        signal.strategy_type = FileReadString(handle);
+        signal.strength_differential = StringToDouble(FileReadString(handle));
+        signal.fundamental_support = StringToDouble(FileReadString(handle));
+        
+        // Read straddle parameters
+        signal.buy_distance = StringToDouble(FileReadString(handle));
+        signal.sell_distance = StringToDouble(FileReadString(handle));
+        signal.stop_loss_pips = StringToDouble(FileReadString(handle));
+        signal.take_profit_pips = StringToDouble(FileReadString(handle));
+        signal.calculated_lot_size = StringToDouble(FileReadString(handle));
+        signal.expiry_hours = (int)StringToInteger(FileReadString(handle));
+        
+        // Parse timestamp
+        signal.timestamp = StringToTime(timestampStr);
+        signal.is_processed = false;
+        
+        // Validate signal
+        if(IsValidEnhancedSignal(signal))
+        {
+            g_enhancedSignals[g_enhancedSignalCount] = signal;
+            g_enhancedSignalCount++;
+        }
+    }
+    
+    FileClose(handle);
+    
+    if(g_enhancedSignalCount > 0)
+    {
+        Print("Loaded ", g_enhancedSignalCount, " enhanced signals from file");
+        g_logManager.WriteLog("Loaded " + IntegerToString(g_enhancedSignalCount) + " enhanced signals");
+    }
+    
+    return g_enhancedSignalCount > 0;
+}
+
+//--- Validate enhanced signal data
+bool IsValidEnhancedSignal(const EnhancedSignalData &signal)
+{
+    // Basic validation
+    if(signal.symbol == "" || signal.confidence < 0.3 || signal.confidence > 1.0)
+        return false;
+    
+    // Check if signal is for current symbol
+    if(signal.symbol != TargetCurrencyPair)
+        return false;
+    
+    // Check signal age (not older than 2 hours)
+    if(TimeCurrent() - signal.timestamp > 7200)
+        return false;
+    
+    // Validate straddle parameters
+    if(signal.direction == "STRADDLE")
+    {
+        if(signal.buy_distance <= 0 || signal.sell_distance <= 0)
+            return false;
+        if(signal.stop_loss_pips <= 0 || signal.take_profit_pips <= 0)
+            return false;
+    }
+    
+    // Check minimum confidence for high-risk conditions
+    if(signal.extreme_justification == "UNJUSTIFIED_EXTREME" && signal.confidence < 0.7)
+        return false;
+    
+    return true;
+}
+
+//--- Process enhanced signals
+bool ProcessEnhancedSignals()
+{
+    if(g_enhancedSignalCount == 0)
+        return false;
+    
+    bool signalProcessed = false;
+    
+    for(int i = 0; i < g_enhancedSignalCount; i++)
+    {
+        if(!g_enhancedSignals[i].is_processed)
+        {
+            if(ShouldProcessEnhancedSignal(g_enhancedSignals[i]))
+            {
+                ExecuteEnhancedSignal(g_enhancedSignals[i]);
+                g_enhancedSignals[i].is_processed = true;
+                signalProcessed = true;
+                break; // Process one signal at a time
+            }
+        }
+    }
+    
+    return signalProcessed;
+}
+
+//--- Check if enhanced signal should be processed
+bool ShouldProcessEnhancedSignal(const EnhancedSignalData &signal)
+{
+    // Check if enough time has passed since last signal
+    if(TimeCurrent() - g_stateManager.LastSignalTime < MinimumSignalInterval)
+        return false;
+    
+    // Check trading hours
+    if(!IsWithinTradingHours())
+        return false;
+    
+    // Check if we're in the right state
+    if(g_stateManager.CurrentState != STATE_IDLE)
+        return false;
+    
+    // Check account conditions
+    if(AccountEquity() < MinimumAccountBalance)
+        return false;
+    
+    // Check enhanced signal specific conditions
+    if(signal.confidence < MinSignalConfidence)
+        return false;
+    
+    // Risk assessment based on extreme justification
+    if(signal.extreme_justification == "UNJUSTIFIED_EXTREME")
+    {
+        // Extra caution for unjustified extremes
+        if(signal.fundamental_support < 0.5 || signal.confidence < 0.8)
+        {
+            Print("Skipping signal due to unjustified extreme with low support");
+            return false;
+        }
+    }
+    
+    // Check strength differential for optimal timing
+    if(signal.strength_differential < 20.0 && signal.strategy_type != "LIQUIDITY_DEFAULT")
+    {
+        Print("Skipping signal due to low strength differential: ", signal.strength_differential);
+        return false;
+    }
+    
+    return true;
+}
+
+//--- Execute enhanced signal
+void ExecuteEnhancedSignal(const EnhancedSignalData &signal)
+{
+    Print("Executing enhanced signal: ", signal.signal_id);
+    g_logManager.WriteLog("Executing enhanced signal: " + signal.signal_id + " (" + signal.strategy_type + ")");
+    
+    if(signal.direction == "STRADDLE")
+    {
+        ExecuteEnhancedStraddle(signal);
+    }
+    else if(signal.direction == "BUY" || signal.direction == "SELL")
+    {
+        ExecuteDirectionalSignal(signal);
+    }
+    
+    // Update state
+    g_stateManager.LastSignalTime = TimeCurrent();
+    g_stateManager.LastSignalSource = SIGNAL_SOURCE_ENHANCED_PYTHON;
+    g_stateManager.SaveState();
+    
+    // Play sound notification
+    g_soundManager.PlaySignalAlert();
+}
+
+//--- Execute enhanced straddle strategy
+void ExecuteEnhancedStraddle(const EnhancedSignalData &signal)
+{
+    // Calculate dynamic lot size based on signal parameters
+    double lotSize = CalculateEnhancedLotSize(signal);
+    
+    // Get enhanced distances
+    double buyDist = signal.buy_distance * Point;
+    double sellDist = signal.sell_distance * Point;
+    double slPips = signal.stop_loss_pips * Point;
+    double tpPips = signal.take_profit_pips * Point;
+    
+    // Apply strategy-specific adjustments
+    if(signal.strategy_type == "STRENGTH_EXPLOITATION")
+    {
+        // Increase lot size for optimal conditions
+        lotSize *= 1.2;
+    }
+    else if(signal.strategy_type == "RECOVERY_MOMENTUM")
+    {
+        // More conservative approach
+        lotSize *= 0.8;
+        slPips *= 0.8; // Tighter stop loss
+    }
+    
+    // Execute straddle with enhanced parameters
+    for(int attempt = 0; attempt < 3; attempt++)
+    {
+        RefreshRates();
+        
+        double buyPrice = NormalizeDouble(Ask + buyDist, Digits);
+        double buySL = NormalizeDouble(buyPrice - slPips, Digits);
+        double buyTP = NormalizeDouble(buyPrice + tpPips, Digits);
+        
+        double sellPrice = NormalizeDouble(Bid - sellDist, Digits);
+        double sellSL = NormalizeDouble(sellPrice + slPips, Digits);
+        double sellTP = NormalizeDouble(sellPrice - tpPips, Digits);
+        
+        // Place orders with enhanced parameters
+        int buyTicket = SafeOrderSend(Symbol(), OP_BUYSTOP, lotSize, buyPrice, Slippage, buySL, buyTP, 
+                                     "ENHANCED_" + signal.signal_id + "_BUY");
+        int sellTicket = SafeOrderSend(Symbol(), OP_SELLSTOP, lotSize, sellPrice, Slippage, sellSL, sellTP, 
+                                      "ENHANCED_" + signal.signal_id + "_SELL");
+        
+        if(buyTicket > 0 && sellTicket > 0)
+        {
+            Print("Enhanced straddle placed successfully - Buy: ", buyTicket, " Sell: ", sellTicket);
+            g_logManager.WriteLog("Enhanced straddle placed: " + signal.strategy_type + 
+                                 " Diff:" + DoubleToString(signal.strength_differential, 1));
+            
+            // Set expiry time if specified
+            if(signal.expiry_hours > 0)
+            {
+                datetime expiryTime = TimeCurrent() + (signal.expiry_hours * 3600);
+                OrderModify(buyTicket, buyPrice, buySL, buyTP, expiryTime);
+                OrderModify(sellTicket, sellPrice, sellSL, sellTP, expiryTime);
+            }
+            
+            g_stateManager.CurrentState = STATE_ORDERS_PLACED;
+            g_stateManager.OrdersPlacedTime = TimeCurrent();
+            g_stateManager.SaveState();
+            return;
+        }
+        else
+        {
+            // Clean up if only one order succeeded
+            if(buyTicket > 0) OrderDelete(buyTicket);
+            if(sellTicket > 0) OrderDelete(sellTicket);
+        }
+        
+        Sleep(500);
+    }
+    
+    Print("Failed to place enhanced straddle after all attempts");
+    g_logManager.WriteLog("FAILED: Enhanced straddle placement for " + signal.signal_id);
+}
+
+//--- Calculate enhanced lot size based on signal parameters
+double CalculateEnhancedLotSize(const EnhancedSignalData &signal)
+{
+    double baseLotSize = 0.01;
+    
+    // Base calculation from account equity
+    double accountBasedLot = NormalizeDouble(AccountEquity() * RiskPercentage / 100.0 / 1000.0, 2);
+    baseLotSize = MathMax(0.01, MathMin(MaxLotSize, accountBasedLot));
+    
+    // Apply signal-specific adjustments
+    if(signal.calculated_lot_size > 0)
+    {
+        // Use Python-calculated lot size as base
+        baseLotSize = signal.calculated_lot_size;
+    }
+    
+    // Confidence-based adjustment
+    double confidenceMultiplier = 0.5 + (signal.confidence * 0.5);
+    baseLotSize *= confidenceMultiplier;
+    
+    // Strength differential adjustment
+    if(signal.strength_differential > 50.0)
+    {
+        baseLotSize *= 1.3; // Increase for high differential
+    }
+    else if(signal.strength_differential < 20.0)
+    {
+        baseLotSize *= 0.7; // Decrease for low differential
+    }
+    
+    // Fundamental support adjustment
+    if(signal.fundamental_support > 0.8)
+    {
+        baseLotSize *= 1.2; // Increase for strong fundamental support
+    }
+    else if(signal.fundamental_support < 0.3)
+    {
+        baseLotSize *= 0.6; // Decrease for weak support
+    }
+    
+    // Extreme justification adjustment
+    if(signal.extreme_justification == "UNJUSTIFIED_EXTREME")
+    {
+        baseLotSize *= 0.5; // Significantly reduce for unjustified extremes
+    }
+    else if(signal.extreme_justification == "JUSTIFIED_EXTREME")
+    {
+        baseLotSize *= 1.1; // Slight increase for justified extremes
+    }
+    
+    // Apply final constraints
+    baseLotSize = NormalizeDouble(baseLotSize, 2);
+    baseLotSize = MathMax(0.01, MathMin(MaxLotSize, baseLotSize));
+    
+    return baseLotSize;
+}
+
+//--- Execute directional signal (BUY/SELL)
+void ExecuteDirectionalSignal(const EnhancedSignalData &signal)
+{
+    double lotSize = CalculateEnhancedLotSize(signal);
+    RefreshRates();
+    
+    int orderType = (signal.direction == "BUY") ? OP_BUY : OP_SELL;
+    double price = (signal.direction == "BUY") ? Ask : Bid;
+    
+    double sl = 0, tp = 0;
+    if(signal.stop_loss_pips > 0)
+    {
+        if(signal.direction == "BUY")
+            sl = NormalizeDouble(price - (signal.stop_loss_pips * Point), Digits);
+        else
+            sl = NormalizeDouble(price + (signal.stop_loss_pips * Point), Digits);
+    }
+    
+    if(signal.take_profit_pips > 0)
+    {
+        if(signal.direction == "BUY")
+            tp = NormalizeDouble(price + (signal.take_profit_pips * Point), Digits);
+        else
+            tp = NormalizeDouble(price - (signal.take_profit_pips * Point), Digits);
+    }
+    
+    int ticket = SafeOrderSend(Symbol(), orderType, lotSize, price, Slippage, sl, tp, 
+                              "ENHANCED_" + signal.signal_id);
+    
+    if(ticket > 0)
+    {
+        Print("Enhanced directional order placed: ", ticket, " (", signal.direction, ")");
+        g_logManager.WriteLog("Enhanced " + signal.direction + " order: " + signal.strategy_type);
+        g_stateManager.CurrentState = STATE_TRADE_TRIGGERED;
+        g_stateManager.SaveState();
+    }
+    else
+    {
+        Print("Failed to place enhanced directional order");
+        g_logManager.WriteLog("FAILED: Enhanced directional order for " + signal.signal_id);
+    }
+}
+
+//--- Main enhanced signal processing function (call from OnTick)
+void ProcessEnhancedSignalSystem()
+{
+    // Check for new signals every 15 seconds
+    if(TimeCurrent() - g_lastEnhancedSignalCheck >= 15)
+    {
+        // Try to read new signals
+        ReadEnhancedSignalsFromFile();
+        
+        // Process any unprocessed signals
+        ProcessEnhancedSignals();
+        
+        g_lastEnhancedSignalCheck = TimeCurrent();
+    }
+}
+
+//--- Enhanced signal system status report
+void ReportEnhancedSignalStatus()
+{
+    string status = "Enhanced Signal System Status:\n";
+    status += "Loaded Signals: " + IntegerToString(g_enhancedSignalCount) + "\n";
+    
+    int processedCount = 0;
+    for(int i = 0; i < g_enhancedSignalCount; i++)
+    {
+        if(g_enhancedSignals[i].is_processed)
+            processedCount++;
+    }
+    
+    status += "Processed: " + IntegerToString(processedCount) + "\n";
+    status += "Pending: " + IntegerToString(g_enhancedSignalCount - processedCount) + "\n";
+    status += "Last Check: " + TimeToString(g_lastEnhancedSignalCheck) + "\n";
+    
+    Comment(status);
+}
+
+//--- Integration with existing HUEY_P OnTick function
+/*
+Add this to your main OnTick() function:
+
+void OnTick()
+{
+    // ... existing HUEY_P code ...
+    
+    // Enhanced signal processing
+    ProcessEnhancedSignalSystem();
+    
+    // Optional: Display status
+    if(ShowEnhancedSignalStatus)
+        ReportEnhancedSignalStatus();
+    
+    // ... rest of existing code ...
+}
+*/
+
+//--- Enhanced signal cleanup function
+void CleanupOldEnhancedSignals()
+{
+    int newCount = 0;
+    datetime cutoffTime = TimeCurrent() - 7200; // 2 hours
+    
+    for(int i = 0; i < g_enhancedSignalCount; i++)
+    {
+        if(g_enhancedSignals[i].timestamp > cutoffTime)
+        {
+            g_enhancedSignals[newCount] = g_enhancedSignals[i];
+            newCount++;
+        }
+    }
+    
+    if(newCount < g_enhancedSignalCount)
+    {
+        Print("Cleaned up ", (g_enhancedSignalCount - newCount), " old enhanced signals");
+        g_enhancedSignalCount = newCount;
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Enhanced Signal System Configuration                             |
+//+------------------------------------------------------------------+
+
+// Add these input parameters to your EA inputs section:
+/*
+input group "--- Enhanced Signal System ---"
+input bool   UseEnhancedSignals = true;        // Enable enhanced Python signal system
+input double MinSignalConfidence = 0.6;        // Minimum confidence for signal execution
+input int    MinimumSignalInterval = 300;      // Minimum seconds between signals
+input bool   ShowEnhancedSignalStatus = false; // Display enhanced signal status on chart
+input double MaxStrengthDifferential = 80.0;   // Maximum allowed strength differential
+input double MinFundamentalSupport = 0.3;      // Minimum fundamental support threshold
+*/

@@ -1,0 +1,212 @@
+# GitHub Workflow: mql4_error_handling.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 17:54:07
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 17:54:07"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  purpose: "Standardize all error detection, logging, and recovery"
+  
+  error_categories:
+    trade_errors: [129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141]
+    connection_errors: [128, 142, 143]
+    validation_errors: [4051, 4062, 4105, 4107, 4108, 4109, 4110, 4111]
+    file_errors: [4099, 4100, 4101, 4102, 4103, 4104]
+    array_errors: [4002, 4003, 4004]
+  
+  critical_trade_errors:
+    129: "invalid price"
+    130: "invalid stops" 
+    131: "invalid trade volume"
+    132: "market is closed"
+    133: "trade is disabled"
+    134: "not enough money"
+    135: "price changed"
+    136: "off quotes"
+    137: "broker is busy"
+    138: "requote"
+    139: "order is locked"
+    140: "long positions only allowed"
+    141: "too many requests"
+  
+  mandatory_error_handler:
+    signature: "int HandleTradeError(int error_code)"
+    implementation: |
+      int HandleTradeError(int error_code) {
+        string l_error_desc_string = "";
+        bool l_retry_bool = false;
+        int l_wait_ms_int = 0;
+        
+        switch(error_code) {
+          case 129: // ERR_INVALID_PRICE
+            l_error_desc_string = "Invalid price";
+            RefreshRates();
+            l_retry_bool = true;
+            l_wait_ms_int = 1000;
+            break;
+            
+          case 130: // ERR_INVALID_STOPS
+            l_error_desc_string = "Invalid stops";
+            l_retry_bool = false;
+            break;
+            
+          case 131: // ERR_INVALID_TRADE_VOLUME
+            l_error_desc_string = "Invalid trade volume";
+            l_retry_bool = false;
+            break;
+            
+          case 132: // ERR_MARKET_CLOSED
+            l_error_desc_string = "Market is closed";
+            l_retry_bool = true;
+            l_wait_ms_int = 60000; // Wait 1 minute
+            break;
+            
+          case 133: // ERR_TRADE_DISABLED
+            l_error_desc_string = "Trade is disabled";
+            l_retry_bool = false;
+            break;
+            
+          case 134: // ERR_NOT_ENOUGH_MONEY
+            l_error_desc_string = "Not enough money";
+            l_retry_bool = false;
+            break;
+            
+          case 135: // ERR_PRICE_CHANGED
+            l_error_desc_string = "Price changed";
+            RefreshRates();
+            l_retry_bool = true;
+            l_wait_ms_int = 500;
+            break;
+            
+          case 136: // ERR_OFF_QUOTES
+            l_error_desc_string = "Off quotes";
+            RefreshRates();
+            l_retry_bool = true;
+            l_wait_ms_int = 2000;
+            break;
+            
+          case 137: // ERR_BROKER_BUSY
+            l_error_desc_string = "Broker is busy";
+            l_retry_bool = true;
+            l_wait_ms_int = 3000;
+            break;
+            
+          case 138: // ERR_REQUOTE
+            l_error_desc_string = "Requote";
+            RefreshRates();
+            l_retry_bool = true;
+            l_wait_ms_int = 1000;
+            break;
+            
+          case 141: // ERR_TOO_MANY_REQUESTS
+            l_error_desc_string = "Too many requests";
+            l_retry_bool = true;
+            l_wait_ms_int = 5000;
+            break;
+            
+          default:
+            l_error_desc_string = "Unknown error";
+            l_retry_bool = false;
+            break;
+        }
+        
+        LogError("HandleTradeError", error_code, l_error_desc_string);
+        
+        if(l_retry_bool && l_wait_ms_int > 0) {
+          Sleep(l_wait_ms_int);
+          return(1); // Indicate retry possible
+        }
+        
+        return(0); // No retry
+      }
+  
+  retry_logic:
+    connection_errors: "Exponential backoff: 1s, 2s, 4s, 8s"
+    price_errors: "Immediate retry after RefreshRates()"
+    broker_busy: "Fixed delay: 3-5 seconds"
+    max_retries: 3
+    pattern: |
+      int l_retry_count_int = 0;
+      int l_max_retries_int = 3;
+      
+      while(l_retry_count_int < l_max_retries_int) {
+        int l_ticket_int = OrderSend(...);
+        
+        if(l_ticket_int >= 0) {
+          return(l_ticket_int); // Success
+        }
+        
+        int l_error_int = GetLastError();
+        int l_retry_result_int = HandleTradeError(l_error_int);
+        
+        if(l_retry_result_int == 0) {
+          break; // No retry recommended
+        }
+        
+        l_retry_count_int++;
+      }
+      
+      return(-1); // Failed after retries
+  
+  logging_functions:
+    log_error:
+      signature: "void LogError(string function_name, int error_code, string description)"
+      implementation: |
+        void LogError(string function_name, int error_code, string description) {
+          string l_timestamp_string = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+          string l_message_string = "[" + l_timestamp_string + "] ERROR " + 
+                                   error_code + ": " + description + 
+                                   " in " + function_name;
+          Print(l_message_string);
+          
+          // Optional: Write to file for persistent logging
+          int l_handle_int = FileOpen("error_log.txt", FILE_WRITE|FILE_READ, ' ');
+          if(l_handle_int >= 0) {
+            FileSeek(l_handle_int, 0, SEEK_END);
+            FileWrite(l_handle_int, l_message_string);
+            FileClose(l_handle_int);
+          }
+        }
+    
+    log_info:
+      signature: "void LogInfo(string function_name, string message)"
+      implementation: |
+        void LogInfo(string function_name, string message) {
+          if(g_debug_mode_bool) {
+            string l_timestamp_string = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+            Print("[" + l_timestamp_string + "] INFO: " + message + " in " + function_name);
+          }
+        }
+  
+  error_recovery_strategies:
+    price_errors: "RefreshRates() and retry"
+    connection_errors: "Wait and retry with exponential backoff"
+    validation_errors: "Log error and abort operation"
+    insufficient_margin: "Reduce lot size or abort"
+    market_closed: "Schedule retry for market open"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

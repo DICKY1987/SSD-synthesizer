@@ -1,0 +1,15 @@
+{
+  "id": "SSD-PROJECT-ALPHA",
+  "title": "Software System Design Specification",
+  "version": "0.1.0",
+  "status": "draft",
+  "last_updated": "2025-08-27",
+  "editable": true,
+  "ai_instruction": "Continuously fill missing details from project documents.",
+  "overview": "./docs/system_overview.json",
+  "architecture": "./components/",
+  "interfaces": "./interfaces/",
+  "data_models": "./data_models/",
+  "nfrs": "./nfrs/",
+  "traceability": "./traceability.json"
+}

@@ -1,0 +1,250 @@
+# GitHub Workflow: mql4_state_management.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 17:54:08
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 17:54:08"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  purpose: "Define how EAs maintain state between ticks and across restarts"
+  
+  state_persistence_levels:
+    tick_persistent: "static variables - survive between start() calls"
+    restart_persistent: "global variables - survive EA restart"  
+    terminal_persistent: "file-based storage - survive terminal restart"
+  
+  static_variables:
+    pattern: "static {type} s_{purpose}_{type} = {initial_value}"
+    scope: "Function-level persistence between ticks"
+    initialization: "Occurs only once before first function call"
+    
+    examples:
+      position_tracking: |
+        static bool s_position_open_bool = false;
+        static int s_current_ticket_int = 0;
+        static double s_entry_price_double = 0.0;
+      
+      bar_tracking: |
+        static datetime s_last_bar_time_datetime = 0;
+        static int s_bar_count_int = 0;
+      
+      signal_tracking: |
+        static int s_last_signal_int = 0; // 1=buy, -1=sell, 0=none
+        static datetime s_signal_time_datetime = 0;
+  
+  global_variables_mt4:
+    purpose: "Cross-restart persistence using MT4's global variable system"
+    functions:
+      set: "GlobalVariableSet(name, value)"
+      get: "GlobalVariableGet(name)"
+      check: "GlobalVariableCheck(name)"
+      delete: "GlobalVariableDelete(name)"
+    
+    naming_convention: "EA_{magic_number}_{variable_name}"
+    
+    implementation: |
+      // Save state before EA shutdown
+      int deinit() {
+        GlobalVariableSet("EA_12345_PositionOpen", s_position_open_bool ? 1 : 0);
+        GlobalVariableSet("EA_12345_CurrentTicket", s_current_ticket_int);
+        GlobalVariableSet("EA_12345_EntryPrice", s_entry_price_double);
+        return(0);
+      }
+      
+      // Restore state after EA restart
+      int init() {
+        if(GlobalVariableCheck("EA_12345_PositionOpen")) {
+          s_position_open_bool = (GlobalVariableGet("EA_12345_PositionOpen") > 0);
+          s_current_ticket_int = GlobalVariableGet("EA_12345_CurrentTicket");
+          s_entry_price_double = GlobalVariableGet("EA_12345_EntryPrice");
+        }
+        return(0);
+      }
+  
+  file_based_persistence:
+    purpose: "Complex state objects that survive terminal restarts"
+    file_format: "Binary or CSV format"
+    
+    state_structure: |
+      struct EAState {
+        bool position_open;
+        int current_ticket;
+        double entry_price;
+        datetime last_trade_time;
+        int consecutive_losses;
+        double account_balance_at_start;
+      };
+    
+    save_implementation: |
+      void SaveEAState() {
+        int l_handle_int = FileOpen("EA_State_" + g_magic_number_int + ".dat", FILE_WRITE|FILE_BIN);
+        if(l_handle_int >= 0) {
+          FileWriteInteger(l_handle_int, s_position_open_bool ? 1 : 0);
+          FileWriteInteger(l_handle_int, s_current_ticket_int);
+          FileWriteDouble(l_handle_int, s_entry_price_double);
+          FileWriteInteger(l_handle_int, s_last_trade_time_datetime);
+          FileWriteInteger(l_handle_int, s_consecutive_losses_int);
+          FileWriteDouble(l_handle_int, s_start_balance_double);
+          FileClose(l_handle_int);
+        }
+      }
+    
+    load_implementation: |
+      bool LoadEAState() {
+        int l_handle_int = FileOpen("EA_State_" + g_magic_number_int + ".dat", FILE_READ|FILE_BIN);
+        if(l_handle_int >= 0) {
+          s_position_open_bool = (FileReadInteger(l_handle_int) > 0);
+          s_current_ticket_int = FileReadInteger(l_handle_int);
+          s_entry_price_double = FileReadDouble(l_handle_int);
+          s_last_trade_time_datetime = FileReadInteger(l_handle_int);
+          s_consecutive_losses_int = FileReadInteger(l_handle_int);
+          s_start_balance_double = FileReadDouble(l_handle_int);
+          FileClose(l_handle_int);
+          return(true);
+        }
+        return(false);
+      }
+  
+  state_validation:
+    position_sync: |
+      bool ValidatePositionState() {
+        // Check if stored state matches actual market position
+        int l_total_orders_int = OrdersTotal();
+        bool l_has_position_bool = false;
+        
+        for(int i = 0; i < l_total_orders_int; i++) {
+          if(OrderSelect(i, SELECT_BY_POS) && 
+             OrderMagicNumber() == g_magic_number_int &&
+             OrderSymbol() == Symbol()) {
+            l_has_position_bool = true;
+            break;
+          }
+        }
+        
+        if(s_position_open_bool != l_has_position_bool) {
+          Print("Warning: Position state mismatch. Correcting...");
+          s_position_open_bool = l_has_position_bool;
+          return(false);
+        }
+        
+        return(true);
+      }
+    
+    ticket_validation: |
+      bool ValidateTicketState() {
+        if(s_current_ticket_int > 0) {
+          if(!OrderSelect(s_current_ticket_int, SELECT_BY_TICKET)) {
+            Print("Warning: Stored ticket ", s_current_ticket_int, " no longer exists");
+            s_current_ticket_int = 0;
+            s_position_open_bool = false;
+            return(false);
+          }
+        }
+        return(true);
+      }
+  
+  state_update_timing:
+    after_order_send: |
+      int l_ticket_int = OrderSend(...);
+      if(l_ticket_int > 0) {
+        s_position_open_bool = true;
+        s_current_ticket_int = l_ticket_int;
+        s_entry_price_double = OrderOpenPrice();
+        SaveEAState(); // Persist immediately
+      }
+    
+    after_order_close: |
+      bool l_result_bool = OrderClose(...);
+      if(l_result_bool) {
+        s_position_open_bool = false;
+        s_current_ticket_int = 0;
+        s_entry_price_double = 0.0;
+        s_last_trade_time_datetime = TimeCurrent();
+        SaveEAState(); // Persist immediately
+      }
+  
+  initialization_sequence:
+    pattern: |
+      int init() {
+        // 1. Initialize static variables to defaults
+        s_position_open_bool = false;
+        s_current_ticket_int = 0;
+        s_entry_price_double = 0.0;
+        
+        // 2. Try to load saved state
+        if(!LoadEAState()) {
+          Print("No saved state found. Starting fresh.");
+        }
+        
+        // 3. Validate loaded state against market
+        ValidatePositionState();
+        ValidateTicketState();
+        
+        // 4. Log initialization result
+        Print("EA initialized. Position open: ", s_position_open_bool, 
+              ", Ticket: ", s_current_ticket_int);
+        
+        return(0);
+      }
+  
+  cleanup_sequence:
+    pattern: |
+      int deinit() {
+        // 1. Save current state
+        SaveEAState();
+        
+        // 2. Optionally save to global variables as backup
+        GlobalVariableSet("EA_" + g_magic_number_int + "_LastShutdown", TimeCurrent());
+        
+        // 3. Log shutdown
+        Print("EA shutdown. State saved.");
+        
+        return(0);
+      }
+  
+  state_debugging:
+    logging_function: |
+      void LogCurrentState() {
+        if(g_debug_mode_bool) {
+          Print("=== EA State Debug ===");
+          Print("Position Open: ", s_position_open_bool);
+          Print("Current Ticket: ", s_current_ticket_int);
+          Print("Entry Price: ", s_entry_price_double);
+          Print("Last Bar Time: ", TimeToStr(s_last_bar_time_datetime));
+          Print("Consecutive Losses: ", s_consecutive_losses_int);
+          Print("====================");
+        }
+      }
+    
+    periodic_validation: |
+      // Call this periodically in start() function
+      if(TimeCurrent() - s_last_validation_time_datetime > 300) { // Every 5 minutes
+        ValidatePositionState();
+        ValidateTicketState();
+        s_last_validation_time_datetime = TimeCurrent();
+      }
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

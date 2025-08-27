@@ -1,0 +1,42 @@
+# Deterministic keyword/phrase routing to template sections.
+# The LLM can refine, but these rules guarantee consistent placement.
+- match: ["purpose", "scope", "users", "business goal"]
+  to_section: "1.1"
+- match: ["diagram", "C4", "component diagram", "network diagram"]
+  to_section: "1.2"
+- match: ["data flow", "DFD", "ETL", "ingest pipeline"]
+  to_section: "1.3"
+- match: ["entity", "table", "schema", "field", "data dictionary"]
+  to_section: "2.1"
+- match: ["persistence", "indexing", "backup", "retention"]
+  to_section: "2.4"
+- match: ["API", "endpoint", "contract", "interface"]
+  to_section: "3.1"
+- match: ["queue", "ordering", "idempotence", "dedupe", "retry"]
+  to_section: "3.6"
+- match: ["heartbeat", "liveness", "watchdog", "timeout", "backoff"]
+  to_section: "3.5"
+- match: ["signal", "alpha", "strategy logic", "trade rules"]
+  to_section: "4.1"
+- match: ["position sizing", "risk", "max loss", "circuit breaker", "kill switch"]
+  to_section: "4.5"
+- match: ["reentry", "pyramiding", "averaging", "scaling in"]
+  to_section: "4.6"
+- match: ["deployment", "release", "rollback", "migrations"]
+  to_section: "5.3"
+- match: ["monitoring", "alerts", "SLA", "SLO", "SRE"]
+  to_section: "5.4"
+- match: ["broker", "terminal", "failover", "reconcile", "cutover"]
+  to_section: "5.6"
+- match: ["security", "auth", "secrets", "encryption"]
+  to_section: "6.1"
+- match: ["time sync", "NTP", "clock drift", "seed", "replay"]
+  to_section: "6.5"
+- match: ["immutable log", "WORM", "hash chain", "audit"]
+  to_section: "6.6"
+- match: ["governance", "model card", "approval", "bias"]
+  to_section: "8.2"
+- match: ["testing", "validation", "RTM", "traceability"]
+  to_section: "9"
+- match: ["Glossary", "terms", "definitions"]
+  to_section: "11"

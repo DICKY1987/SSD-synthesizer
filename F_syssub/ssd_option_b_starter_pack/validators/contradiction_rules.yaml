@@ -1,0 +1,8 @@
+# Pairs that must be consistent across the SSD
+pairs:
+  - left: { id: "4.5.max_daily_loss" }
+    right: { id: "5.4.alerts.max_daily_loss_threshold" }
+    relation: "equal"
+  - left: { id: "6.5.drift_budget_ms" }
+    right: { id: "5.4.alerts.clock_drift_ms" }
+    relation: "greater_or_equal"

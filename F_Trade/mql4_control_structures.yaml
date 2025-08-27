@@ -1,0 +1,350 @@
+# GitHub Workflow: mql4_control_structures.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 18:16:14
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 18:16:14"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  purpose: "Standardize all logic flows for readability, safety, and consistency"
+
+  conditional_statements:
+    if_statement_format:
+      pattern: |
+        if({condition}) {
+          {action};
+        }
+      mandatory_braces: "Always use braces, even for single statements"
+      examples:
+        - |
+          if(signal_valid_bool == true) {
+            ExecuteTrade();
+          }
+        - |
+          if(current_price_double > entry_price_double) {
+            ClosePosition();
+          }
+
+    if_else_format:
+      pattern: |
+        if({condition}) {
+          {action_true};
+        } else {
+          {action_false};
+        }
+      example: |
+        if(market_open_bool == true) {
+          ProcessSignal();
+        } else {
+          Print("Market is closed");
+        }
+
+    nested_if_format:
+      pattern: |
+        if({condition1}) {
+          if({condition2}) {
+            {action};
+          }
+        }
+      max_nesting_depth: 3
+      example: |
+        if(signal_received_bool == true) {
+          if(market_open_bool == true) {
+            if(margin_sufficient_bool == true) {
+              ExecuteTrade();
+            }
+          }
+        }
+
+  comparison_standards:
+    explicit_comparisons:
+      bool_variables: "Explicit comparison recommended for clarity"
+      examples:
+        - "if(trading_enabled_bool == true) { }"
+        - "if(position_open_bool == false) { }"
+
+    implicit_comparisons:
+      status: "Permitted in MQL4 and considered standard"
+      examples:
+        - "if(trading_enabled_bool) { }      // Checks if true"
+        - "if(!position_open_bool) { }       // Checks if false"
+
+    numeric_comparisons:
+      zero_check: "if(value_double != 0.0) { }"
+      positive_check: "if(value_double > 0.0) { }"
+      negative_check: "if(value_double < 0.0) { }"
+
+  prohibited_if_patterns:
+    single_line_without_braces: |
+      // FORBIDDEN: No braces
+      if(condition) action();
+
+      // CORRECT: Always use braces
+      if(condition) {
+        action();
+      }
+
+    excessive_nesting: |
+      // FORBIDDEN: More than 3 levels
+      if(level1) {
+        if(level2) {
+          if(level3) {
+            if(level4) {  // FORBIDDEN
+              action();
+            }
+          }
+        }
+      }
+
+      // CORRECT: Refactor into functions
+      if(AllConditionsMet()) {
+        action();
+      }
+
+  loop_structures:
+    for_loop_format:
+      pattern: |
+        for(int {counter}_int = {start}; {counter}_int < {limit}; {counter}_int++) {
+          {actions};
+        }
+      counter_naming: ["i_int", "j_int", "k_int"]
+      examples:
+        - |
+          for(int i_int = 0; i_int < OrdersTotal(); i_int++) {
+            if(OrderSelect(i_int, SELECT_BY_POS)) {
+              ProcessOrder();
+            }
+          }
+        - |
+          for(int i_int = OrdersTotal() - 1; i_int >= 0; i_int--) {
+            if(OrderSelect(i_int, SELECT_BY_POS)) {
+              CloseOrder(i_int);
+            }
+          }
+
+    while_loop_format:
+      pattern: |
+        int {safety_counter}_int = 0;
+        int {max_iterations}_int = {limit};
+
+        while({condition} && {safety_counter}_int < {max_iterations}_int) {
+          {actions};
+          {safety_counter}_int++;
+        }
+
+        if({safety_counter}_int >= {max_iterations}_int) {
+          Print("WARNING: While loop reached maximum iterations");
+        }
+
+      mandatory_safety_counter: "ALWAYS include to prevent infinite loops"
+      example: |
+        int l_safety_counter_int = 0;
+        int l_max_iterations_int = 1000;
+
+        while(condition_bool == true && l_safety_counter_int < l_max_iterations_int) {
+          ProcessIteration();
+          condition_bool = CheckCondition();
+          l_safety_counter_int++;
+          Sleep(10); // Optional: prevent excessive CPU usage
+        }
+
+        if(l_safety_counter_int >= l_max_iterations_int) {
+          Print("WARNING: While loop reached maximum iterations");
+        }
+
+  prohibited_loop_patterns:
+    while_without_safety: |
+      // FORBIDDEN: No safety counter
+      while(condition_bool == true) {
+        ProcessIteration();
+      }
+
+    infinite_while: |
+      // FORBIDDEN: Infinite loop
+      while(true) {
+        if(SomeCondition()) break;
+        ProcessIteration();
+      }
+
+    non_standard_counters: |
+      // FORBIDDEN: Non-standard counter names
+      for(int counter = 0; counter < limit; counter++) { }  // Use i_int
+      for(int idx = 0; idx < limit; idx++) { }             // Use i_int
+
+  switch_statements:
+    mandatory_structure:
+      pattern: |
+        switch({variable}) {
+          case {value1}:
+            {actions1};
+            break;
+          case {value2}:
+            {actions2};
+            break;
+          default:
+            {default_actions};
+            break;
+        }
+
+      mandatory_default: "ALWAYS include default case"
+      mandatory_breaks: "ALWAYS include break statements"
+
+    example: |
+      switch(order_type_int) {
+        case OP_BUY:
+          ProcessBuyOrder();
+          break;
+
+        case OP_SELL:
+          ProcessSellOrder();
+          break;
+
+        case OP_BUYLIMIT:
+          ProcessBuyLimitOrder();
+          break;
+
+        case OP_SELLLIMIT:
+          ProcessSellLimitOrder();
+          break;
+
+        default:
+          Print("ERROR: Unknown order type: ", order_type_int);
+          break;
+      }
+
+    error_handling_in_default: |
+      switch(error_code_int) {
+        case ERR_NO_ERROR:
+          ProcessSuccess();
+          break;
+
+        case ERR_REQUOTE:
+          HandleRequote();
+          break;
+
+        case ERR_INVALID_PRICE:
+          HandleInvalidPrice();
+          break;
+
+        default:
+          Print("ERROR: Unhandled error code: ", error_code_int);
+          LogError("UnhandledError", error_code_int);
+          break;
+      }
+
+  prohibited_switch_patterns:
+    missing_default: |
+      // FORBIDDEN: No default case
+      switch(signal_type_int) {
+        case SIGNAL_BUY:
+          ExecuteBuy();
+          break;
+        case SIGNAL_SELL:
+          ExecuteSell();
+          break;
+        // MISSING DEFAULT - FORBIDDEN
+      }
+
+    missing_breaks: |
+      // FORBIDDEN: Fall-through cases
+      switch(action_int) {
+        case ACTION_OPEN:
+          OpenPosition();
+          // MISSING BREAK - FORBIDDEN
+        case ACTION_CLOSE:
+          ClosePosition();
+          break;
+      }
+
+  control_flow_operators:
+    break_statement:
+      usage: "Terminate nearest nested switch, while, or for"
+      example: |
+        for(int i_int = 0; i_int < ArraySize(data_array); i_int++) {
+          if(data_array[i_int] == target_value) {
+            Print("Found target at index: ", i_int);
+            break;
+          }
+        }
+
+    continue_statement:
+      usage: "Skip to next iteration of while or for loop"
+      example: |
+        for(int i_int = 0; i_int < OrdersTotal(); i_int++) {
+          if(!OrderSelect(i_int, SELECT_BY_POS)) {
+            continue; // Skip invalid orders
+          }
+          ProcessOrder();
+        }
+
+    return_statement:
+      usage: "Exit function and optionally return value"
+      examples:
+        - "return;                    // Void function"
+        - "return(true);              // Boolean function"
+        - "return(calculated_value);  // Value function"
+
+  nesting_limits:
+    maximum_depth: 3
+    recommendation: "Refactor deep nesting into separate functions"
+    refactoring_example: |
+      // BEFORE: Deep nesting (FORBIDDEN)
+      if(level1) {
+        if(level2) {
+          if(level3) {
+            if(level4) {
+              action();
+            }
+          }
+        }
+      }
+
+      // AFTER: Refactored (CORRECT)
+      if(AllConditionsMet()) {
+        action();
+      }
+
+      bool AllConditionsMet() {
+        if(!level1) return(false);
+        if(!level2) return(false);
+        if(!level3) return(false);
+        if(!level4) return(false);
+        return(true);
+      }
+
+  compound_statements:
+    block_definition: "Statements enclosed in braces { }"
+    formatting: |
+      // CORRECT: Proper block formatting
+      if(condition) {
+        statement1;
+        statement2;
+        statement3;
+      }
+
+    no_semicolon_after_brace: "Closing brace should NOT be followed by semicolon"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

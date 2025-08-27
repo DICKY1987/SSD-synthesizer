@@ -1,0 +1,68 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+title: TradingSystemSSD
+type: object
+required: [meta, sections]
+properties:
+  meta:
+    type: object
+    required: [system_name, version, created_at]
+    properties:
+      system_name: { type: string }
+      version: { type: string }
+      doc_id: { type: string }
+      created_at: { type: string, format: date-time }
+      source_corpus:
+        type: array
+        items: { $ref: "#/$defs/sourceRef" }
+      notes: { type: string }
+  sections:
+    type: object
+    description: "Keys are section numbers matching your template (e.g., 1, 1.1, 4.6, 5.6, 10)"
+    patternProperties:
+      "^(1(\.\d+)?|2(\.\d+)?|3(\.\d+)?|4(\.\d+)?|5(\.\d+)?|6(\.\d+)?|7(\.\d+)?|8(\.\d+)?|9|10|11)$":
+        $ref: "#/$defs/section"
+    additionalProperties: false
+additionalProperties: false
+$defs:
+  section:
+    type: object
+    properties:
+      title: { type: string }
+      fields:
+        type: array
+        items: { $ref: "#/$defs/field" }
+    required: [fields]
+    additionalProperties: false
+  field:
+    type: object
+    required: [id, name, value, evidence, confidence]
+    properties:
+      id: { type: string }
+      name: { type: string }
+      value: {}
+      unit: { type: string }
+      confidence: { type: number, minimum: 0, maximum: 1 }
+      evidence:
+        type: array
+        items: { $ref: "#/$defs/evidence" }
+      notes: { type: string }
+    additionalProperties: false
+  evidence:
+    type: object
+    required: [source_id, locator, snippet_hash]
+    properties:
+      source_id: { type: string }
+      locator: { type: string }
+      snippet_hash: { type: string }
+      excerpt: { type: string, maxLength: 600 }
+    additionalProperties: false
+  sourceRef:
+    type: object
+    required: [id, uri, kind]
+    properties:
+      id: { type: string }
+      uri: { type: string }
+      kind: { enum: ["doc","pdf","sheet","code","cfg"] }
+      created_at: { type: string, format: date-time }
+      sha256: { type: string }
+    additionalProperties: false

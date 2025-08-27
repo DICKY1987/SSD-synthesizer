@@ -1,0 +1,113 @@
+# GitHub Workflow: mql4_functions.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 17:54:08
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 17:54:08"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  purpose: "Define function complexity limits and mandatory helper functions"
+
+  function_complexity_limits:
+    max_lines: 50
+    max_cyclomatic_complexity: 10
+    max_parameters: 5
+    max_nesting_depth: 3
+
+  special_functions:
+    init:
+      signature: "int init()"
+      purpose: "Initialization when EA/indicator attached"
+      return: "0 for success"
+    deinit:
+      signature: "int deinit()"
+      purpose: "Cleanup when EA/indicator detached"
+      return: "0 for success"
+    start:
+      signature: "int start()"
+      purpose: "Called on each tick"
+      return: "0 for success"
+
+  mandatory_helper_functions:
+    - name: "NormalizePrice"
+      signature: "double NormalizePrice(double price)"
+      purpose: "Normalize price to broker's digit precision"
+      implementation: "return(NormalizeDouble(price, Digits))"
+
+    - name: "ValidateStopLevels"
+      signature: "bool ValidateStopLevels(double entry_price, double stop_loss, double take_profit)"
+      purpose: "Verify stops meet minimum distance requirements"
+      validation_checks:
+        - "Check against MarketInfo(Symbol(), MODE_STOPLEVEL)"
+        - "Verify stop_loss != 0 before validation"
+        - "Verify take_profit != 0 before validation"
+
+    - name: "CalculateLotSize"
+      signature: "double CalculateLotSize(double risk_amount, double stop_points)"
+      purpose: "Calculate position size based on risk"
+      validation_checks:
+        - "Check against MarketInfo(Symbol(), MODE_LOTSTEP)"
+        - "Verify minimum lot: MODE_MINLOT"
+        - "Verify maximum lot: MODE_MAXLOT"
+
+    - name: "IsNewBar"
+      signature: "bool IsNewBar()"
+      purpose: "Detect new bar formation"
+      implementation: |
+        static datetime s_last_bar_time_datetime = 0;
+        if(Time[0] != s_last_bar_time_datetime) {
+          s_last_bar_time_datetime = Time[0];
+          return(true);
+        }
+        return(false);
+
+  function_naming:
+    pattern: "{Action}{Object}"
+    examples:
+      - "CalculateLotSize()"
+      - "ValidateOrder()"
+      - "GetAccountBalance()"
+      - "SetStopLoss()"
+
+  error_handling_in_functions:
+    pattern: |
+      bool FunctionName() {
+        // Implementation
+        if(error_condition) {
+          int l_error_int = GetLastError();
+          Print("Error in FunctionName: ", l_error_int);
+          return(false);
+        }
+        return(true);
+      }
+
+  return_conventions:
+    success_failure: "true/false for bool functions"
+    trading_functions: "ticket number or -1 for failure"
+    calculation_functions: "calculated value or EMPTY_VALUE for error"
+    void_functions: "Use for actions without return values"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

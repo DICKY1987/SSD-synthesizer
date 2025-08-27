@@ -1,0 +1,49 @@
+{
+  "symbols": [
+    "EURUSD",
+    "USDJPY",
+    "GBPUSD",
+    "USDCHF",
+    "USDCAD",
+    "AUDUSD",
+    "NZDUSD",
+    "EURJPY",
+    "GBPJPY",
+    "EURGBP"
+  ],
+  "paths": {
+    "profiles_root": "C:\\FX\\ReentryProfiles",
+    "config_root": "C:\\MT4\\MQL4\\Files\\config",
+    "db_path": "C:\\FX\\data\\trades.db",
+    "sqlite_exe": "C:\\Program Files\\SQLite\\sqlite3.exe",
+    "scripts_dir": "C:\\FX\\scripts",
+    "reports_dir": "C:\\FX\\reports\\weekly",
+    "logs_dir": "C:\\FX\\logs"
+  },
+  "personas": {
+    "cycle_map": {
+      "Monday": "conservative",
+      "Tuesday": "moderate",
+      "Wednesday": "aggressive",
+      "Thursday": "conservative",
+      "Friday": "moderate",
+      "Saturday": "conservative",
+      "Sunday": "moderate"
+    },
+    "fallback_cycle": [
+      "conservative",
+      "moderate",
+      "aggressive"
+    ]
+  },
+  "scheduling": {
+    "profile_rotate": {
+      "time": "06:45",
+      "frequency": "DAILY"
+    },
+    "weekly_kpi": {
+      "day": "Sunday",
+      "time": "18:00"
+    }
+  }
+}

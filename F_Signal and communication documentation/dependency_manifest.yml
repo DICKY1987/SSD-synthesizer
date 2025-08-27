@@ -1,0 +1,1819 @@
+# Trading System Dependency Management
+
+## 1. Core Dependency Manifest
+
+```yaml
+# dependency_manifest.yaml - Trading System Dependency Map
+system:
+  name: "Enhanced Python-Dominant Trading System"
+  version: "1.0.0"
+  total_components: 45
+  critical_components: 8
+
+# ============================================================================
+# PYTHON SERVICES LAYER
+# ============================================================================
+services:
+  SignalService:
+    language: python
+    criticality: critical
+    description: "ML-powered signal generation with explainable AI"
+    startup_order: 30
+    depends_on:
+      MarketDataService:
+        interface: websocket
+        critical: true
+        timeout_ms: 5000
+        fallback: cache_fallback
+      ConfigurationService:
+        interface: rest_api
+        critical: true
+        timeout_ms: 1000
+        fallback: local_config
+      SQLiteStateTracker:
+        tables: [signal_registry, signal_trade_correlation]
+        critical: true
+        fallback: memory_queue
+    provides: [signal_generation_api, signal_events]
+    fallback_strategy: rule_based_signals
+    health_file: "health_signal_service.txt"
+    
+  MarketDataService:
+    language: python
+    criticality: critical
+    description: "Real-time market data aggregation with latency monitoring"
+    startup_order: 20
+    depends_on:
+      ExternalMarketFeed:
+        interface: websocket
+        critical: true
+        sla_ms: 100
+        fallback: cached_data
+      SQLiteStateTracker:
+        tables: [market_data_EURUSD, market_data_GBPUSD]
+        critical: false
+        fallback: memory_buffer
+    provides: [market_data_websocket, currency_strength_api]
+    fallback_strategy: cached_data_with_staleness_warning
+    health_file: "health_market_data.txt"
+    
+  AnalyticsService:
+    language: python
+    criticality: important
+    description: "Portfolio risk analysis and performance metrics"
+    startup_order: 40
+    depends_on:
+      MarketDataService:
+        interface: rest_api
+        critical: false
+        fallback: historical_data
+      SQLiteStateTracker:
+        tables: [trades_*, performance_metrics_cache]
+        critical: true
+        fallback: none
+    provides: [risk_analytics_api, performance_reports]
+    fallback_strategy: reduced_functionality
+    health_file: "health_analytics.txt"
+    
+  CommunicationService:
+    language: python
+    criticality: critical
+    description: "Message broker with bridge management"
+    startup_order: 50
+    depends_on:
+      BridgeManager:
+        bridges: [dll_socket, named_pipes, file_based]
+        critical: true
+        fallback_chain: true
+      SignalService:
+        interface: rest_api
+        critical: true
+        fallback: queue_messages
+    provides: [message_routing, bridge_coordination]
+    fallback_strategy: queue_and_retry
+    health_file: "health_communication.txt"
+    
+  ConfigurationService:
+    language: python
+    criticality: critical
+    description: "Centralized configuration with hot-reload"
+    startup_order: 10
+    depends_on:
+      ConfigFiles:
+        files: [master_config.yaml, pair_configs/*.yaml]
+        critical: true
+        fallback: default_config
+    provides: [config_api, hot_reload_events]
+    fallback_strategy: default_configuration
+    health_file: "health_configuration.txt"
+
+# ============================================================================
+# MQL4 EA LAYER - 30 Currency Pairs
+# ============================================================================
+mql4_eas:
+  # Major Pairs
+  TradingEA_EURUSD:
+    language: mql4
+    criticality: critical
+    symbol: EURUSD
+    magic_number: 12346
+    startup_order: 80
+    depends_on:
+      SignalService:
+        interface: file_based
+        files: [EURUSD_signals.csv]
+        critical: true
+        fallback: pause_trading
+        max_signal_age_seconds: 300
+      CTradingEACore:
+        type: include
+        file: TradingEACore.mqh
+        critical: true
+        fallback: none
+      CBridgeInterface:
+        type: include
+        file: BridgeInterface.mqh
+        critical: true
+        fallback: none
+      ConfigFiles:
+        files: [EURUSD_config.csv, EURUSD_reentry.csv]
+        critical: true
+        fallback: EURUSD_config_default.csv
+      SQLiteStateTracker:
+        tables: [trades_EURUSD, signals_EURUSD]
+        critical: true
+        fallback: memory_tracking
+      BridgeInterface:
+        bridges: [dll_socket, named_pipes, file_based]
+        critical: true
+        primary: dll_socket
+        fallback_chain: [named_pipes, file_based]
+    provides: [trade_execution_EURUSD, ea_status_EURUSD]
+    fallback_strategy: graceful_trading_pause
+    health_file: "EURUSD_heartbeat.csv"
+    
+  TradingEA_GBPUSD:
+    language: mql4
+    criticality: critical
+    symbol: GBPUSD
+    magic_number: 12347
+    startup_order: 80
+    depends_on:
+      SignalService:
+        interface: file_based
+        files: [GBPUSD_signals.csv]
+        critical: true
+        fallback: pause_trading
+      CTradingEACore:
+        type: include
+        critical: true
+      CBridgeInterface:
+        type: include
+        critical: true
+      ConfigFiles:
+        files: [GBPUSD_config.csv, GBPUSD_reentry.csv]
+        critical: true
+        fallback: default_config
+      SQLiteStateTracker:
+        tables: [trades_GBPUSD, signals_GBPUSD]
+        critical: true
+      BridgeInterface:
+        bridges: [dll_socket, named_pipes, file_based]
+        critical: true
+        primary: dll_socket
+        fallback_chain: [named_pipes, file_based]
+    provides: [trade_execution_GBPUSD, ea_status_GBPUSD]
+    fallback_strategy: graceful_trading_pause
+    health_file: "GBPUSD_heartbeat.csv"
+    
+  # Template for remaining 28 pairs
+  TradingEA_Template:
+    language: mql4
+    criticality: important
+    template_for: [USDJPY, USDCHF, USDCAD, AUDUSD, NZDUSD, EURGBP, EURJPY, 
+                   EURCHF, EURCAD, EURAUD, EURNZD, GBPJPY, GBPCHF, GBPCAD,
+                   GBPAUD, GBPNZD, JPYCHF, JPYCAD, JPYAUD, JPYNZD, CHFCAD,
+                   CHFAUD, CHFNZD, CADAUD, CADNZD, AUDNZD, XAUUSD, XAGUSD]
+    startup_order: 80
+    depends_on:
+      SignalService:
+        interface: file_based
+        files: ["{SYMBOL}_signals.csv"]
+        critical: true
+        fallback: pause_trading
+      CTradingEACore:
+        type: include
+        critical: true
+      CBridgeInterface:
+        type: include
+        critical: true
+      ConfigFiles:
+        files: ["{SYMBOL}_config.csv", "{SYMBOL}_reentry.csv"]
+        critical: true
+        fallback: default_config
+      SQLiteStateTracker:
+        tables: ["trades_{SYMBOL}", "signals_{SYMBOL}"]
+        critical: true
+      BridgeInterface:
+        bridges: [dll_socket, named_pipes, file_based]
+        critical: true
+        primary: dll_socket
+        fallback_chain: [named_pipes, file_based]
+
+# ============================================================================
+# BRIDGE COMMUNICATION LAYER
+# ============================================================================
+bridges:
+  DLLSocketBridge:
+    language: cpp
+    criticality: critical
+    description: "Primary bridge - DLL + TCP Socket"
+    startup_order: 15
+    performance:
+      target_latency_ms: 10
+      max_latency_ms: 50
+      throughput_ops_sec: 1000
+    depends_on:
+      MT4Terminal:
+        interface: dll_export
+        exports: [InitializeBridge, SendSignal, GetResponse]
+        critical: true
+        fallback: named_pipes
+      TCPSocket:
+        port: 8001
+        interface: tcp
+        critical: true
+        fallback: named_pipes
+    provides: [python_to_mt4_bridge, mt4_to_python_bridge]
+    fallback_strategy: automatic_named_pipes
+    health_file: "bridge_dll_socket_status.txt"
+    
+  NamedPipesBridge:
+    language: cpp
+    criticality: important
+    description: "Secondary bridge - Windows Named Pipes"
+    startup_order: 16
+    performance:
+      target_latency_ms: 50
+      max_latency_ms: 100
+      throughput_ops_sec: 500
+    depends_on:
+      WindowsNamedPipes:
+        pipe_name: "TradingSystemBridge"
+        interface: named_pipe
+        critical: true
+        fallback: file_based
+    provides: [backup_communication_channel]
+    fallback_strategy: automatic_file_based
+    health_file: "bridge_named_pipes_status.txt"
+    
+  FileBasedBridge:
+    language: powershell
+    criticality: important
+    description: "Tertiary bridge - File-based with RAM disk"
+    startup_order: 17
+    performance:
+      target_latency_ms: 500
+      max_latency_ms: 2000
+      throughput_ops_sec: 10
+    depends_on:
+      FileSystem:
+        paths: [MT4/Files/signals/, MT4/Files/responses/]
+        interface: filesystem
+        critical: true
+        fallback: none
+      PowerShellMonitor:
+        script: Monitor_File_Bridge.ps1
+        critical: true
+        fallback: manual_monitoring
+    provides: [reliable_fallback_communication]
+    fallback_strategy: manual_intervention
+    health_file: "bridge_file_based_status.txt"
+
+# ============================================================================
+# DATA LAYER
+# ============================================================================
+databases:
+  SQLiteStateTracker:
+    language: sql
+    criticality: critical
+    description: "Embedded SQLite for state management"
+    startup_order: 5
+    file: "trading_system.db"
+    tables:
+      # Core tables
+      signal_registry:
+        critical: true
+        backup: continuous
+      signal_trade_correlation:
+        critical: true
+        backup: continuous
+      performance_metrics_cache:
+        critical: false
+        backup: daily
+      
+      # Per-pair tables (template)
+      pair_tables_template:
+        trades_{SYMBOL}:
+          critical: true
+          backup: continuous
+        signals_{SYMBOL}:
+          critical: true
+          backup: continuous
+        market_data_{SYMBOL}:
+          critical: false
+          backup: daily
+        reentry_chains_{SYMBOL}:
+          critical: false
+          backup: weekly
+    depends_on:
+      FileSystem:
+        path: "Database/"
+        critical: true
+        fallback: memory_database
+    provides: [state_persistence, analytics_data]
+    fallback_strategy: in_memory_with_periodic_dump
+    validation_file: "trading_system.db_validation.txt"
+
+# ============================================================================
+# POWERSHELL MANAGEMENT LAYER
+# ============================================================================
+powershell_scripts:
+  BridgeHealthMonitor:
+    language: powershell
+    criticality: critical
+    description: "Bridge health monitoring and failover coordination"
+    startup_order: 60
+    script: "Monitor_Bridge_Health.ps1"
+    interval_seconds: 30
+    depends_on:
+      AllBridges:
+        bridges: [dll_socket, named_pipes, file_based]
+        critical: true
+        fallback: manual_monitoring
+      ConfigurationFiles:
+        files: [bridge_config.json]
+        critical: true
+        fallback: default_bridge_config
+    provides: [bridge_health_status, automatic_failover]
+    fallback_strategy: alert_and_manual_intervention
+    
+  ConfigurationManager:
+    language: powershell
+    criticality: important
+    description: "Configuration distribution and hot-reload"
+    startup_order: 25
+    script: "Manage_Configuration.ps1"
+    depends_on:
+      ConfigurationFiles:
+        files: [master_config.yaml, pair_configs/*.yaml]
+        critical: true
+        fallback: cached_config
+      AllServices:
+        services: [SignalService, MarketDataService, AnalyticsService]
+        critical: false
+        fallback: file_distribution
+    provides: [config_distribution, hot_reload_coordination]
+    fallback_strategy: file_based_distribution
+    
+  DeploymentOrchestrator:
+    language: powershell
+    criticality: important
+    description: "Automated EA deployment and management"
+    startup_order: 70
+    script: "Deploy_All_EAs.ps1"
+    depends_on:
+      CompiledEAs:
+        files: [MT4/Experts/TradingEA_*.ex4]
+        critical: true
+        fallback: manual_deployment
+      MT4Terminal:
+        interface: file_system
+        critical: true
+        fallback: manual_attachment
+    provides: [ea_deployment, ea_lifecycle_management]
+    fallback_strategy: manual_deployment_procedures
+
+# ============================================================================
+# EXCEL DASHBOARD LAYER
+# ============================================================================
+excel_dashboard:
+  TradingDashboard:
+    language: vba
+    criticality: optional
+    description: "Real-time trading dashboard and manual controls"
+    startup_order: 90
+    file: "TradingDashboard.xlsm"
+    depends_on:
+      PythonServices:
+        services: [SignalService, AnalyticsService]
+        interface: rest_api
+        critical: false
+        fallback: static_data
+      ConfigurationFiles:
+        files: [dashboard_config.json]
+        critical: false
+        fallback: default_layout
+      SQLiteStateTracker:
+        tables: [performance_metrics_cache, signal_registry]
+        critical: false
+        fallback: api_data_only
+    provides: [dashboard_interface, manual_overrides]
+    fallback_strategy: degraded_functionality
+    update_interval_seconds: 10
+
+# ============================================================================
+# EXTERNAL DEPENDENCIES
+# ============================================================================
+external:
+  MT4Terminal:
+    type: trading_platform
+    criticality: critical
+    description: "MetaTrader 4 trading platform"
+    startup_order: 1
+    depends_on: []
+    provides: [trading_execution, market_data_feed]
+    health_check: "IsConnected() && IsTradeAllowed()"
+    fallback_strategy: system_shutdown
+    
+  ExternalMarketFeed:
+    type: api
+    criticality: critical
+    description: "External market data provider"
+    startup_order: 2
+    endpoint: "wss://api.marketdata.com/v1/stream"
+    sla:
+      uptime_percent: 99.9
+      max_latency_ms: 100
+    depends_on: []
+    provides: [real_time_market_data]
+    fallback_strategy: cached_data_with_alerts
+
+# ============================================================================
+# CHANGE IMPACT MAPPING
+# ============================================================================
+change_impact:
+  # Service changes
+  SignalService:
+    interface_changes: [All_EAs, AnalyticsService, CommunicationService]
+    config_changes: [All_EAs]
+    version_upgrade: [All_EAs, dependent_services]
+    
+  MarketDataService:
+    interface_changes: [SignalService, AnalyticsService]
+    data_format_changes: [All_EAs, SignalService]
+    performance_changes: [All_EAs]
+    
+  CTradingEACore:
+    changes: [All_EAs]
+    breaking_changes: [All_EAs, BridgeInterface]
+    
+  CBridgeInterface:
+    changes: [All_EAs, CommunicationService]
+    protocol_changes: [All_EAs, All_Bridges]
+    
+  SQLiteStateTracker:
+    schema_changes: [All_services, All_EAs]
+    table_changes: [specific_pair_EAs, AnalyticsService]
+    
+  BridgeInterface:
+    primary_failure: [All_EAs]
+    fallback_failure: [All_EAs, manual_intervention_required]
+    
+  # Configuration changes
+  MasterConfig:
+    changes: [All_services, All_EAs]
+    hot_reload_supported: [Python_services]
+    restart_required: [All_EAs]
+
+# ============================================================================
+# VALIDATION RULES
+# ============================================================================
+validation:
+  # Health file monitoring
+  health_files:
+    SignalService: "health_signal_service.txt"
+    MarketDataService: "health_market_data.txt"
+    AnalyticsService: "health_analytics.txt"
+    CommunicationService: "health_communication.txt"
+    ConfigurationService: "health_configuration.txt"
+    
+  # Bridge status files
+  bridge_status:
+    dll_socket: "bridge_dll_socket_status.txt"
+    named_pipes: "bridge_named_pipes_status.txt"
+    file_based: "bridge_file_based_status.txt"
+    
+  # EA heartbeat files (per pair)
+  ea_heartbeats:
+    template: "{SYMBOL}_heartbeat.csv"
+    pairs: [EURUSD, GBPUSD, USDJPY, USDCHF, USDCAD, AUDUSD, NZDUSD, EURGBP,
+            EURJPY, EURCHF, EURCAD, EURAUD, EURNZD, GBPJPY, GBPCHF, GBPCAD,
+            GBPAUD, GBPNZD, JPYCHF, JPYCAD, JPYAUD, JPYNZD, CHFCAD, CHFAUD,
+            CHFNZD, CADAUD, CADNZD, AUDNZD, XAUUSD, XAGUSD]
+    
+  # Required files
+  critical_files:
+    - master_config.yaml
+    - trading_system.db
+    - TradingEACore.mqh
+    - BridgeInterface.mqh
+    
+  # Startup order validation
+  startup_sequence:
+    - MT4Terminal (1)
+    - ExternalMarketFeed (2)
+    - SQLiteStateTracker (5)
+    - ConfigurationService (10)
+    - DLLSocketBridge (15)
+    - NamedPipesBridge (16)
+    - FileBasedBridge (17)
+    - MarketDataService (20)
+    - ConfigurationManager (25)
+    - SignalService (30)
+    - AnalyticsService (40)
+    - CommunicationService (50)
+    - BridgeHealthMonitor (60)
+    - DeploymentOrchestrator (70)
+    - All_EAs (80)
+    - TradingDashboard (90)
+    
+  # Performance thresholds
+  performance_sla:
+    dll_socket_latency_ms: 10
+    named_pipes_latency_ms: 50
+    file_based_latency_ms: 500
+    signal_generation_timeout_ms: 5000
+    market_data_latency_ms: 100
+```
+
+## 2. Automation Scripts
+
+### 2.1 Dependency Validator Script
+
+```python
+#!/usr/bin/env python3
+# scripts/validate_dependencies.py
+"""
+Trading System Dependency Validator
+Validates system dependencies based on dependency_manifest.yaml
+"""
+
+import yaml
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class ValidationResult:
+    component: str
+    dependency: str
+    status: str  # "ok", "warning", "error"
+    message: str
+    timestamp: datetime
+
+class DependencyValidator:
+    def __init__(self, manifest_path: str = "dependency_manifest.yaml"):
+        self.manifest_path = manifest_path
+        self.manifest = self.load_manifest()
+        self.results: List[ValidationResult] = []
+        
+    def load_manifest(self) -> Dict[str, Any]:
+        """Load dependency manifest"""
+        try:
+            with open(self.manifest_path, 'r') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            print(f"❌ Failed to load manifest: {e}")
+            sys.exit(1)
+    
+    def validate_all(self) -> bool:
+        """Validate all dependencies"""
+        print("🔍 Validating Trading System Dependencies...")
+        print(f"📋 Loaded manifest: {self.manifest['system']['name']} v{self.manifest['system']['version']}")
+        print(f"🔗 Total components: {self.manifest['system']['total_components']}")
+        print()
+        
+        all_valid = True
+        
+        # Validate services
+        if not self.validate_services():
+            all_valid = False
+            
+        # Validate MQL4 EAs
+        if not self.validate_mql4_eas():
+            all_valid = False
+            
+        # Validate bridges
+        if not self.validate_bridges():
+            all_valid = False
+            
+        # Validate databases
+        if not self.validate_databases():
+            all_valid = False
+            
+        # Validate external dependencies
+        if not self.validate_external():
+            all_valid = False
+            
+        # Generate report
+        self.generate_report()
+        
+        return all_valid
+    
+    def validate_services(self) -> bool:
+        """Validate Python services"""
+        print("🐍 Validating Python Services...")
+        services = self.manifest.get('services', {})
+        all_valid = True
+        
+        for service_name, service_config in services.items():
+            print(f"  Checking {service_name}...")
+            
+            # Check health file
+            health_file = service_config.get('health_file')
+            if health_file:
+                if self.check_health_file(health_file):
+                    self.add_result(service_name, "health_check", "ok", "Service healthy")
+                    print(f"    ✅ Health check passed")
+                else:
+                    self.add_result(service_name, "health_check", "error", "Health check failed")
+                    print(f"    ❌ Health check failed")
+                    if service_config.get('criticality') == 'critical':
+                        all_valid = False
+            
+            # Check dependencies
+            depends_on = service_config.get('depends_on', {})
+            for dep_name, dep_config in depends_on.items():
+                if isinstance(dep_config, dict):
+                    if dep_config.get('critical', False):
+                        if not self.check_dependency(dep_name, dep_config):
+                            self.add_result(service_name, dep_name, "error", "Critical dependency failed")
+                            print(f"    ❌ Critical dependency failed: {dep_name}")
+                            all_valid = False
+                        else:
+                            print(f"    ✅ Dependency satisfied: {dep_name}")
+        
+        return all_valid
+    
+    def validate_mql4_eas(self) -> bool:
+        """Validate MQL4 EAs"""
+        print("\n🤖 Validating MQL4 EAs...")
+        mql4_eas = self.manifest.get('mql4_eas', {})
+        all_valid = True
+        
+        # Handle template expansion
+        if 'TradingEA_Template' in mql4_eas:
+            template = mql4_eas['TradingEA_Template']
+            pairs = template.get('template_for', [])
+            
+            print(f"  Checking {len(pairs)} EAs from template...")
+            
+            for pair in pairs:
+                ea_name = f"TradingEA_{pair}"
+                
+                # Check heartbeat file
+                heartbeat_file = f"{pair}_heartbeat.csv"
+                if self.check_file_exists(heartbeat_file):
+                    self.add_result(ea_name, "heartbeat", "ok", "EA responding")
+                    print(f"    ✅ {pair} EA active")
+                else:
+                    self.add_result(ea_name, "heartbeat", "warning", "No heartbeat detected")
+                    print(f"    ⚠️  {pair} EA heartbeat missing")
+                
+                # Check config files
+                config_file = f"{pair}_config.csv"
+                if self.check_file_exists(config_file):
+                    print(f"    ✅ {pair} config found")
+                else:
+                    self.add_result(ea_name, "config", "error", "Config file missing")
+                    print(f"    ❌ {pair} config missing")
+                    all_valid = False
+        
+        # Check explicit EAs
+        for ea_name, ea_config in mql4_eas.items():
+            if ea_name == 'TradingEA_Template':
+                continue
+                
+            print(f"  Checking {ea_name}...")
+            
+            # Check heartbeat
+            heartbeat_file = ea_config.get('health_file')
+            if heartbeat_file:
+                if self.check_file_exists(heartbeat_file):
+                    print(f"    ✅ Heartbeat active")
+                else:
+                    print(f"    ⚠️  Heartbeat missing")
+        
+        return all_valid
+    
+    def validate_bridges(self) -> bool:
+        """Validate bridge connectivity"""
+        print("\n🌉 Validating Bridge Connectivity...")
+        bridges = self.manifest.get('bridges', {})
+        any_bridge_available = False
+        
+        for bridge_name, bridge_config in bridges.items():
+            print(f"  Checking {bridge_name}...")
+            
+            health_file = bridge_config.get('health_file')
+            if health_file:
+                if self.check_health_file(health_file):
+                    print(f"    ✅ Bridge available")
+                    any_bridge_available = True
+                    self.add_result(bridge_name, "connectivity", "ok", "Bridge operational")
+                else:
+                    print(f"    ❌ Bridge unavailable")
+                    self.add_result(bridge_name, "connectivity", "error", "Bridge failed")
+        
+        if not any_bridge_available:
+            print("  ❌ No bridges available - critical system failure")
+            return False
+        
+        return True
+    
+    def validate_databases(self) -> bool:
+        """Validate database dependencies"""
+        print("\n🗄️  Validating Database Dependencies...")
+        databases = self.manifest.get('databases', {})
+        all_valid = True
+        
+        for db_name, db_config in databases.items():
+            print(f"  Checking {db_name}...")
+            
+            db_file = db_config.get('file')
+            if db_file:
+                if self.check_file_exists(db_file):
+                    print(f"    ✅ Database file exists")
+                    
+                    # Check validation file
+                    validation_file = db_config.get('validation_file')
+                    if validation_file:
+                        if self.check_health_file(validation_file):
+                            print(f"    ✅ Database validation passed")
+                            self.add_result(db_name, "validation", "ok", "Database healthy")
+                        else:
+                            print(f"    ⚠️  Database validation warning")
+                            self.add_result(db_name, "validation", "warning", "Database validation failed")
+                else:
+                    print(f"    ❌ Database file missing")
+                    self.add_result(db_name, "file_exists", "error", "Database file missing")
+                    all_valid = False
+        
+        return all_valid
+    
+    def validate_external(self) -> bool:
+        """Validate external dependencies"""
+        print("\n🌐 Validating External Dependencies...")
+        external = self.manifest.get('external', {})
+        all_valid = True
+        
+        for ext_name, ext_config in external.items():
+            print(f"  Checking {ext_name}...")
+            
+            if ext_name == "MT4Terminal":
+                # For MT4, we check if any EA heartbeats are present
+                ea_heartbeats = self.get_ea_heartbeats()
+                if ea_heartbeats:
+                    print(f"    ✅ MT4 Terminal active ({len(ea_heartbeats)} EAs responding)")
+                    self.add_result(ext_name, "connectivity", "ok", "MT4 active")
+                else:
+                    print(f"    ❌ MT4 Terminal not responding")
+                    self.add_result(ext_name, "connectivity", "error", "MT4 not active")
+                    all_valid = False
+            
+            elif ext_name == "ExternalMarketFeed":
+                # Check market data service health as proxy
+                if self.check_health_file("health_market_data.txt"):
+                    print(f"    ✅ Market data feed active")
+                    self.add_result(ext_name, "connectivity", "ok", "Market feed active")
+                else:
+                    print(f"    ❌ Market data feed inactive")
+                    self.add_result(ext_name, "connectivity", "error", "Market feed inactive")
+                    if ext_config.get('criticality') == 'critical':
+                        all_valid = False
+        
+        return all_valid
+    
+    def check_health_file(self, health_file: str) -> bool:
+        """Check if health file exists and is recent"""
+        if not self.check_file_exists(health_file):
+            return False
+        
+        # Check file age (should be updated within last 2 minutes)
+        try:
+            file_path = Path(health_file)
+            file_age = time.time() - file_path.stat().st_mtime
+            return file_age < 120  # 2 minutes
+        except:
+            return False
+    
+    def check_file_exists(self, file_path: str) -> bool:
+        """Check if file exists"""
+        return Path(file_path).exists()
+    
+    def check_dependency(self, dep_name: str, dep_config: Dict) -> bool:
+        """Check if dependency is satisfied"""
+        # For now, simple file/health check
+        if 'files' in dep_config:
+            files = dep_config['files']
+            if isinstance(files, list):
+                return all(self.check_file_exists(f) for f in files)
+            else:
+                return self.check_file_exists(files)
+        
+        # Check if it's another service
+        services = self.manifest.get('services', {})
+        if dep_name in services:
+            health_file = services[dep_name].get('health_file')
+            if health_file:
+                return self.check_health_file(health_file)
+        
+        return True  # Assume satisfied if no specific check
+    
+    def get_ea_heartbeats(self) -> List[str]:
+        """Get list of active EA heartbeat files"""
+        heartbeats = []
+        validation_config = self.manifest.get('validation', {})
+        ea_heartbeats = validation_config.get('ea_heartbeats', {})
+        
+        if 'pairs' in ea_heartbeats:
+            template = ea_heartbeats.get('template', '{SYMBOL}_heartbeat.csv')
+            for pair in ea_heartbeats['pairs']:
+                heartbeat_file = template.replace('{SYMBOL}', pair)
+                if self.check_file_exists(heartbeat_file):
+                    heartbeats.append(pair)
+        
+        return heartbeats
+    
+    def add_result(self, component: str, dependency: str, status: str, message: str):
+        """Add validation result"""
+        self.results.append(ValidationResult(
+            component=component,
+            dependency=dependency,
+            status=status,
+            message=message,
+            timestamp=datetime.now()
+        ))
+    
+    def generate_report(self):
+        """Generate validation report"""
+        print("\n" + "="*60)
+        print("📊 DEPENDENCY VALIDATION REPORT")
+        print("="*60)
+        
+        total = len(self.results)
+        ok_count = len([r for r in self.results if r.status == "ok"])
+        warning_count = len([r for r in self.results if r.status == "warning"])
+        error_count = len([r for r in self.results if r.status == "error"])
+        
+        print(f"Total Checks: {total}")
+        print(f"✅ Passed: {ok_count}")
+        print(f"⚠️  Warnings: {warning_count}")
+        print(f"❌ Errors: {error_count}")
+        print(f"Success Rate: {ok_count/total*100:.1f}%" if total > 0 else "N/A")
+        
+        if error_count > 0:
+            print(f"\n❌ CRITICAL ISSUES ({error_count}):")
+            for result in self.results:
+                if result.status == "error":
+                    print(f"  {result.component} -> {result.dependency}: {result.message}")
+        
+        if warning_count > 0:
+            print(f"\n⚠️  WARNINGS ({warning_count}):")
+            for result in self.results:
+                if result.status == "warning":
+                    print(f"  {result.component} -> {result.dependency}: {result.message}")
+        
+        # Save detailed report
+        report_data = {
+            'timestamp': datetime.now().isoformat(),
+            'summary': {
+                'total_checks': total,
+                'passed': ok_count,
+                'warnings': warning_count,
+                'errors': error_count,
+                'success_rate': ok_count/total*100 if total > 0 else 0
+            },
+            'results': [
+                {
+                    'component': r.component,
+                    'dependency': r.dependency,
+                    'status': r.status,
+                    'message': r.message,
+                    'timestamp': r.timestamp.isoformat()
+                }
+                for r in self.results
+            ]
+        }
+        
+        with open('dependency_validation_report.json', 'w') as f:
+            json.dump(report_data, f, indent=2)
+        
+        print(f"\n📄 Detailed report saved: dependency_validation_report.json")
+
+def main():
+    validator = DependencyValidator()
+    
+    success = validator.validate_all()
+    
+    if success:
+        print("\n🎉 All critical dependencies satisfied!")
+        sys.exit(0)
+    else:
+        print("\n💥 Critical dependency failures detected!")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
+
+### 2.2 Change Impact Analyzer
+
+```python
+#!/usr/bin/env python3
+# scripts/analyze_impact.py
+"""
+Change Impact Analyzer for Trading System
+Analyzes what components are affected by changes
+"""
+
+import yaml
+import json
+import sys
+import argparse
+from typing import Dict, List, Set, Any
+from datetime import datetime
+
+class ImpactAnalyzer:
+    def __init__(self, manifest_path: str = "dependency_manifest.yaml"):
+        self.manifest_path = manifest_path
+        self.manifest = self.load_manifest()
+        
+    def load_manifest(self) -> Dict[str, Any]:
+        """Load dependency manifest"""
+        with open(self.manifest_path, 'r') as f:
+            return yaml.safe_load(f)
+    
+    def analyze_component_change(self, component_name: str, change_type: str = "modification") -> Dict:
+        """Analyze impact of changing a component"""
+        print(f"🔍 Analyzing impact of {change_type} to {component_name}...")
+        
+        impact_report = {
+            'component': component_name,
+            'change_type': change_type,
+            'timestamp': datetime.now().isoformat(),
+            'direct_dependents': [],
+            'indirect_dependents': [],
+            'critical_impact': [],
+            'fallback_analysis': {},
+            'testing_recommendations': [],
+            'deployment_recommendations': []
+        }
+        
+        # Check change impact mappings
+        change_impact = self.manifest.get('change_impact', {})
+        if component_name in change_impact:
+            impact_config = change_impact[component_name]
+            
+            if change_type == "interface_changes":
+                affected = impact_config.get('interface_changes', [])
+            elif change_type == "config_changes":
+                affected = impact_config.get('config_changes', [])
+            elif change_type == "version_upgrade":
+                affected = impact_config.get('version_upgrade', [])
+            else:
+                # Default to interface changes
+                affected = impact_config.get('interface_changes', [])
+            
+            impact_report['direct_dependents'] = affected
+        
+        # Find dependencies through manifest scanning
+        direct_deps = self.find_direct_dependents(component_name)
+        impact_report['direct_dependents'].extend(direct_deps)
+        impact_report['direct_dependents'] = list(set(impact_report['direct_dependents']))  # Remove duplicates
+        
+        # Analyze critical impact
+        critical_deps = self.find_critical_dependents(component_name)
+        impact_report['critical_impact'] = critical_deps
+        
+        # Analyze fallback options
+        impact_report['fallback_analysis'] = self.analyze_fallback_options(component_name)
+        
+        # Generate recommendations
+        impact_report['testing_recommendations'] = self.generate_testing_recommendations(impact_report)
+        impact_report['deployment_recommendations'] = self.generate_deployment_recommendations(impact_report)
+        
+        return impact_report
+    
+    def find_direct_dependents(self, component_name: str) -> List[str]:
+        """Find components that directly depend on this component"""
+        dependents = []
+        
+        # Check services
+        services = self.manifest.get('services', {})
+        for service_name, service_config in services.items():
+            depends_on = service_config.get('depends_on', {})
+            if component_name in depends_on or any(component_name in str(dep) for dep in depends_on.values()):
+                dependents.append(service_name)
+        
+        # Check MQL4 EAs
+        mql4_eas = self.manifest.get('mql4_eas', {})
+        for ea_name, ea_config in mql4_eas.items():
+            depends_on = ea_config.get('depends_on', {})
+            if component_name in depends_on or any(component_name in str(dep) for dep in depends_on.values()):
+                dependents.append(ea_name)
+        
+        # Check bridges
+        bridges = self.manifest.get('bridges', {})
+        for bridge_name, bridge_config in bridges.items():
+            depends_on = bridge_config.get('depends_on', {})
+            if component_name in depends_on or any(component_name in str(dep) for dep in depends_on.values()):
+                dependents.append(bridge_name)
+        
+        return dependents
+    
+    def find_critical_dependents(self, component_name: str) -> List[Dict]:
+        """Find components with critical dependencies on this component"""
+        critical_deps = []
+        
+        all_components = {
+            **self.manifest.get('services', {}),
+            **self.manifest.get('mql4_eas', {}),
+            **self.manifest.get('bridges', {})
+        }
+        
+        for comp_name, comp_config in all_components.items():
+            depends_on = comp_config.get('depends_on', {})
+            
+            for dep_name, dep_config in depends_on.items():
+                if dep_name == component_name and isinstance(dep_config, dict):
+                    if dep_config.get('critical', False):
+                        critical_deps.append({
+                            'component': comp_name,
+                            'dependency': dep_name,
+                            'interface': dep_config.get('interface', 'unknown'),
+                            'fallback': dep_config.get('fallback', 'none')
+                        })
+        
+        return critical_deps
+    
+    def analyze_fallback_options(self, component_name: str) -> Dict:
+        """Analyze fallback options for dependents"""
+        fallback_analysis = {}
+        
+        critical_deps = self.find_critical_dependents(component_name)
+        
+        for dep in critical_deps:
+            comp_name = dep['component']
+            fallback = dep['fallback']
+            
+            fallback_analysis[comp_name] = {
+                'has_fallback': fallback != 'none',
+                'fallback_strategy': fallback,
+                'automatic': fallback not in ['manual_intervention', 'none']
+            }
+        
+        return fallback_analysis
+    
+    def generate_testing_recommendations(self, impact_report: Dict) -> List[str]:
+        """Generate testing recommendations"""
+        recommendations = []
+        
+        # Critical component testing
+        if impact_report['critical_impact']:
+            critical_components = [item['component'] for item in impact_report['critical_impact']]
+            recommendations.append(
+                f"🔴 CRITICAL: Test integration with critical dependents: {', '.join(critical_components)}"
+            )
+        
+        # EA testing for signal service changes
+        if impact_report['component'] == 'SignalService':
+            if 'All_EAs' in impact_report['direct_dependents']:
+                recommendations.append(
+                    "🤖 Test signal processing with subset of EAs (EURUSD, GBPUSD, USDJPY)"
+                )
+                recommendations.append(
+                    "📊 Validate signal format compatibility across all currency pairs"
+                )
+        
+        # Bridge testing
+        if impact_report['component'] in ['DLLSocketBridge', 'NamedPipesBridge', 'FileBasedBridge']:
+            recommendations.append(
+                "🌉 Test complete bridge fallback chain: DLL+Socket → Named Pipes → File-based"
+            )
+        
+        # Performance testing
+        if len(impact_report['direct_dependents']) > 5:
+            recommendations.append(
+                "⚡ Run performance regression tests due to wide impact scope"
+            )
+        
+        return recommendations
+    
+    def generate_deployment_recommendations(self, impact_report: Dict) -> List[str]:
+        """Generate deployment recommendations"""
+        recommendations = []
+        
+        # Startup order consideration
+        startup_sequence = self.manifest.get('validation', {}).get('startup_sequence', [])
+        if startup_sequence:
+            component = impact_report['component']
+            affected = impact_report['direct_dependents']
+            
+            # Find positions in startup sequence
+            component_pos = None
+            affected_positions = []
+            
+            for i, item in enumerate(startup_sequence):
+                if component in item:
+                    component_pos = i
+                for aff in affected:
+                    if aff in item:
+                        affected_positions.append((i, aff))
+            
+            if component_pos is not None and affected_positions:
+                later_components = [aff for pos, aff in affected_positions if pos > component_pos]
+                if later_components:
+                    recommendations.append(
+                        f"📋 Deploy in startup order: {component} → {' → '.join(later_components)}"
+                    )
+        
+        # Critical dependency handling
+        if impact_report['critical_impact']:
+            recommendations.append(
+                "🔴 CRITICAL: Coordinate deployment to minimize downtime for critical dependents"
+            )
+        
+        # Fallback preparation
+        components_without_fallbacks = [
+            comp for comp, analysis in impact_report['fallback_analysis'].items()
+            if not analysis['has_fallback']
+        ]
+        
+        if components_without_fallbacks:
+            recommendations.append(
+                f"⚠️  Prepare manual procedures for components without fallbacks: {', '.join(components_without_fallbacks)}"
+            )
+        
+        # EA-specific recommendations
+        if 'All_EAs' in impact_report['direct_dependents']:
+            recommendations.append(
+                "🤖 Consider rolling deployment across EA pairs to minimize market exposure"
+            )
+            recommendations.append(
+                "🛑 Prepare to pause trading if critical signal service issues arise"
+            )
+        
+        return recommendations
+    
+    def generate_report(self, impact_report: Dict):
+        """Generate and save impact analysis report"""
+        print("\n" + "="*60)
+        print("📊 CHANGE IMPACT ANALYSIS REPORT")
+        print("="*60)
+        
+        print(f"Component: {impact_report['component']}")
+        print(f"Change Type: {impact_report['change_type']}")
+        print(f"Analysis Time: {impact_report['timestamp']}")
+        print()
+        
+        print(f"📋 Direct Dependents ({len(impact_report['direct_dependents'])}):")
+        for dep in impact_report['direct_dependents']:
+            print(f"  • {dep}")
+        print()
+        
+        if impact_report['critical_impact']:
+            print(f"🔴 Critical Impact ({len(impact_report['critical_impact'])}):")
+            for critical in impact_report['critical_impact']:
+                fallback = critical['fallback']
+                print(f"  • {critical['component']} (interface: {critical['interface']}, fallback: {fallback})")
+            print()
+        
+        if impact_report['fallback_analysis']:
+            print("🔄 Fallback Analysis:")
+            for comp, analysis in impact_report['fallback_analysis'].items():
+                status = "✅ Available" if analysis['has_fallback'] else "❌ None"
+                auto = "(automatic)" if analysis['automatic'] else "(manual)"
+                print(f"  • {comp}: {status} {auto}")
+            print()
+        
+        print("🧪 Testing Recommendations:")
+        for rec in impact_report['testing_recommendations']:
+            print(f"  • {rec}")
+        print()
+        
+        print("🚀 Deployment Recommendations:")
+        for rec in impact_report['deployment_recommendations']:
+            print(f"  • {rec}")
+        
+        # Save to file
+        filename = f"impact_analysis_{impact_report['component']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(filename, 'w') as f:
+            json.dump(impact_report, f, indent=2)
+        
+        print(f"\n📄 Detailed report saved: {filename}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Trading System Change Impact Analyzer")
+    parser.add_argument("component", help="Component name to analyze")
+    parser.add_argument("--change-type", default="modification", 
+                      choices=["modification", "interface_changes", "config_changes", "version_upgrade"],
+                      help="Type of change being made")
+    parser.add_argument("--manifest", default="dependency_manifest.yaml", 
+                      help="Path to dependency manifest file")
+    
+    args = parser.parse_args()
+    
+    analyzer = ImpactAnalyzer(args.manifest)
+    impact_report = analyzer.analyze_component_change(args.component, args.change_type)
+    analyzer.generate_report(impact_report)
+
+if __name__ == "__main__":
+    main()
+```
+
+### 2.3 Mermaid Diagram Generator
+
+```python
+#!/usr/bin/env python3
+# scripts/generate_diagrams.py
+"""
+Generate Mermaid diagrams from dependency manifest
+"""
+
+import yaml
+import argparse
+from typing import Dict, Any, List
+
+class DiagramGenerator:
+    def __init__(self, manifest_path: str = "dependency_manifest.yaml"):
+        self.manifest_path = manifest_path
+        self.manifest = self.load_manifest()
+    
+    def load_manifest(self) -> Dict[str, Any]:
+        """Load dependency manifest"""
+        with open(self.manifest_path, 'r') as f:
+            return yaml.safe_load(f)
+    
+    def generate_system_overview(self) -> str:
+        """Generate high-level system overview diagram"""
+        mermaid = []
+        mermaid.append("graph TD")
+        mermaid.append("    %% Trading System Architecture Overview")
+        mermaid.append("")
+        
+        # Add nodes
+        services = self.manifest.get('services', {})
+        for service_name, service_config in services.items():
+            criticality = service_config.get('criticality', 'optional')
+            color = self.get_color_for_criticality(criticality)
+            mermaid.append(f"    {service_name}[{service_name}]:::{color}")
+        
+        # Add MQL4 EAs (grouped)
+        mermaid.append("    subgraph EAs [\"30 Trading EAs\"]")
+        mermaid.append("        EURUSD[TradingEA_EURUSD]")
+        mermaid.append("        GBPUSD[TradingEA_GBPUSD]")
+        mermaid.append("        Others[\"28 Other Pairs...\"]")
+        mermaid.append("    end")
+        
+        # Add bridges
+        bridges = self.manifest.get('bridges', {})
+        for bridge_name, bridge_config in bridges.items():
+            mermaid.append(f"    {bridge_name}[{bridge_name}]:::bridge")
+        
+        # Add external
+        external = self.manifest.get('external', {})
+        for ext_name in external.keys():
+            mermaid.append(f"    {ext_name}[{ext_name}]:::external")
+        
+        mermaid.append("")
+        
+        # Add relationships
+        mermaid.append("    %% Core Dependencies")
+        mermaid.append("    ExternalMarketFeed --> MarketDataService")
+        mermaid.append("    MarketDataService --> SignalService")
+        mermaid.append("    SignalService --> CommunicationService")
+        mermaid.append("    CommunicationService --> DLLSocketBridge")
+        mermaid.append("    DLLSocketBridge --> EURUSD")
+        mermaid.append("    DLLSocketBridge --> GBPUSD")
+        mermaid.append("    DLLSocketBridge --> Others")
+        
+        mermaid.append("")
+        mermaid.append("    %% Fallback Chain")
+        mermaid.append("    DLLSocketBridge -.-> NamedPipesBridge")
+        mermaid.append("    NamedPipesBridge -.-> FileBasedBridge")
+        
+        mermaid.append("")
+        mermaid.append("    %% Database Dependencies")
+        mermaid.append("    SQLiteStateTracker --> SignalService")
+        mermaid.append("    SQLiteStateTracker --> AnalyticsService")
+        mermaid.append("    SQLiteStateTracker --> EURUSD")
+        mermaid.append("    SQLiteStateTracker --> GBPUSD")
+        
+        mermaid.append("")
+        mermaid.append("    %% Styling")
+        mermaid.append("    classDef critical fill:#ff6b6b,stroke:#d63031,stroke-width:3px,color:#fff")
+        mermaid.append("    classDef important fill:#feca57,stroke:#ff6b6b,stroke-width:2px")
+        mermaid.append("    classDef optional fill:#48dbfb,stroke:#0abde3,stroke-width:1px")
+        mermaid.append("    classDef bridge fill:#ff9ff3,stroke:#f368e0,stroke-width:2px")
+        mermaid.append("    classDef external fill:#54a0ff,stroke:#2e86de,stroke-width:2px")
+        
+        return "\n".join(mermaid)
+    
+    def generate_bridge_hierarchy(self) -> str:
+        """Generate bridge hierarchy and fallback diagram"""
+        mermaid = []
+        mermaid.append("graph LR")
+        mermaid.append("    %% Bridge Hierarchy and Fallback Chain")
+        mermaid.append("")
+        
+        mermaid.append("    subgraph Primary [\"Primary Bridge\"]")
+        mermaid.append("        DLL[DLL+Socket Bridge<br/>Target: <10ms<br/>Throughput: 1000 ops/sec]:::primary")
+        mermaid.append("    end")
+        
+        mermaid.append("    subgraph Secondary [\"Secondary Bridge\"]")
+        mermaid.append("        NP[Named Pipes Bridge<br/>Target: <50ms<br/>Throughput: 500 ops/sec]:::secondary")
+        mermaid.append("    end")
+        
+        mermaid.append("    subgraph Tertiary [\"Tertiary Bridge\"]")
+        mermaid.append("        FB[File-Based Bridge<br/>Target: <500ms<br/>Throughput: 10 ops/sec]:::tertiary")
+        mermaid.append("    end")
+        
+        mermaid.append("")
+        mermaid.append("    Python[Python Services] --> DLL")
+        mermaid.append("    DLL --> EAs[30 Trading EAs]")
+        mermaid.append("    DLL -.\"Failure\".-> NP")
+        mermaid.append("    NP --> EAs")
+        mermaid.append("    NP -.\"Failure\".-> FB")
+        mermaid.append("    FB --> EAs")
+        
+        mermaid.append("")
+        mermaid.append("    classDef primary fill:#00b894,stroke:#00a085,stroke-width:3px,color:#fff")
+        mermaid.append("    classDef secondary fill:#fdcb6e,stroke:#e17055,stroke-width:2px")
+        mermaid.append("    classDef tertiary fill:#fd79a8,stroke:#e84393,stroke-width:2px")
+        
+        return "\n".join(mermaid)
+    
+    def generate_ea_deployment(self) -> str:
+        """Generate EA deployment and pairing diagram"""
+        mermaid = []
+        mermaid.append("graph TD")
+        mermaid.append("    %% 30 EA Deployment Structure")
+        mermaid.append("")
+        
+        # Group by currency families
+        mermaid.append("    subgraph Major [\"Major Pairs (7)\"]")
+        mermaid.append("        EURUSD[EURUSD]")
+        mermaid.append("        GBPUSD[GBPUSD]")
+        mermaid.append("        USDJPY[USDJPY]")
+        mermaid.append("        USDCHF[USDCHF]")
+        mermaid.append("        USDCAD[USDCAD]")
+        mermaid.append("        AUDUSD[AUDUSD]")
+        mermaid.append("        NZDUSD[NZDUSD]")
+        mermaid.append("    end")
+        
+        mermaid.append("    subgraph Cross [\"Cross Pairs (21)\"]")
+        mermaid.append("        EURGBP[EURGBP]")
+        mermaid.append("        EURJPY[EURJPY]")
+        mermaid.append("        GBPJPY[GBPJPY]")
+        mermaid.append("        CrossOthers[\"18 Other Crosses...\"]")
+        mermaid.append("    end")
+        
+        mermaid.append("    subgraph Metals [\"Precious Metals (2)\"]")
+        mermaid.append("        XAUUSD[XAUUSD - Gold]")
+        mermaid.append("        XAGUSD[XAGUSD - Silver]")
+        mermaid.append("    end")
+        
+        mermaid.append("")
+        mermaid.append("    SignalService --> Major")
+        mermaid.append("    SignalService --> Cross")
+        mermaid.append("    SignalService --> Metals")
+        
+        mermaid.append("")
+        mermaid.append("    Major --> Bridge[Bridge Layer]")
+        mermaid.append("    Cross --> Bridge")
+        mermaid.append("    Metals --> Bridge")
+        
+        mermaid.append("")
+        mermaid.append("    classDef major fill:#00b894,stroke:#00a085,stroke-width:2px,color:#fff")
+        mermaid.append("    classDef cross fill:#fdcb6e,stroke:#e17055,stroke-width:2px")
+        mermaid.append("    classDef metals fill:#fd79a8,stroke:#e84393,stroke-width:2px,color:#fff")
+        
+        return "\n".join(mermaid)
+    
+    def get_color_for_criticality(self, criticality: str) -> str:
+        """Get CSS class for criticality level"""
+        return {
+            'critical': 'critical',
+            'important': 'important',
+            'optional': 'optional'
+        }.get(criticality, 'optional')
+    
+    def save_diagrams(self, output_dir: str = "docs/diagrams"):
+        """Generate and save all diagrams"""
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # System overview
+        overview = self.generate_system_overview()
+        with open(f"{output_dir}/system_overview.mmd", 'w') as f:
+            f.write(overview)
+        
+        # Bridge hierarchy
+        bridge_hierarchy = self.generate_bridge_hierarchy()
+        with open(f"{output_dir}/bridge_hierarchy.mmd", 'w') as f:
+            f.write(bridge_hierarchy)
+        
+        # EA deployment
+        ea_deployment = self.generate_ea_deployment()
+        with open(f"{output_dir}/ea_deployment.mmd", 'w') as f:
+            f.write(ea_deployment)
+        
+        # Generate README with embedded diagrams
+        readme_content = self.generate_readme_with_diagrams()
+        with open(f"{output_dir}/README.md", 'w') as f:
+            f.write(readme_content)
+        
+        print(f"📊 Diagrams generated in {output_dir}/")
+        print("   • system_overview.mmd")
+        print("   • bridge_hierarchy.mmd") 
+        print("   • ea_deployment.mmd")
+        print("   • README.md (with embedded diagrams)")
+    
+    def generate_readme_with_diagrams(self) -> str:
+        """Generate README with embedded Mermaid diagrams"""
+        content = [
+            "# Trading System Architecture Diagrams",
+            "",
+            "## System Overview",
+            "",
+            "```mermaid",
+            self.generate_system_overview(),
+            "```",
+            "",
+            "## Bridge Hierarchy and Fallback Chain",
+            "",
+            "```mermaid", 
+            self.generate_bridge_hierarchy(),
+            "```",
+            "",
+            "## EA Deployment Structure",
+            "",
+            "```mermaid",
+            self.generate_ea_deployment(),
+            "```",
+            "",
+            "---",
+            "",
+            f"*Generated from dependency_manifest.yaml on {self.manifest['system']['name']} v{self.manifest['system']['version']}*"
+        ]
+        
+        return "\n".join(content)
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate Mermaid diagrams from dependency manifest")
+    parser.add_argument("--manifest", default="dependency_manifest.yaml", help="Path to dependency manifest")
+    parser.add_argument("--output-dir", default="docs/diagrams", help="Output directory for diagrams")
+    
+    args = parser.parse_args()
+    
+    generator = DiagramGenerator(args.manifest)
+    generator.save_diagrams(args.output_dir)
+
+if __name__ == "__main__":
+    main()
+```
+
+### 2.4 Pre-commit Hook
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+# Dependency validation pre-commit hook
+
+echo "🔍 Running dependency validation..."
+
+# Check if dependency manifest changed
+if git diff --cached --name-only | grep -q "dependency_manifest.yaml"; then
+    echo "📋 Dependency manifest changed - running full validation"
+    
+    # Validate manifest syntax
+    python -c "import yaml; yaml.safe_load(open('dependency_manifest.yaml'))" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "❌ Invalid YAML syntax in dependency_manifest.yaml"
+        exit 1
+    fi
+    
+    # Run dependency validation
+    python scripts/validate_dependencies.py
+    if [ $? -ne 0 ]; then
+        echo "❌ Dependency validation failed!"
+        echo "Fix critical dependency issues before committing."
+        exit 1
+    fi
+    
+    # Generate updated diagrams
+    python scripts/generate_diagrams.py
+    
+    # Add generated files to commit
+    git add docs/diagrams/
+    
+    echo "✅ Dependency validation passed and diagrams updated"
+fi
+
+# Check if any component files changed that might affect dependencies
+CHANGED_COMPONENTS=$(git diff --cached --name-only | grep -E "\.(py|mq4|ps1|yaml|json)$")
+
+if [ -n "$CHANGED_COMPONENTS" ]; then
+    echo "🔧 Component files changed - running impact analysis"
+    
+    # You could add specific impact analysis here for changed files
+    # For now, just remind about running impact analysis
+    echo "💡 Remember to run impact analysis for changed components:"
+    echo "   python scripts/analyze_impact.py <component_name>"
+fi
+
+echo "🔗 Pre-commit dependency checks complete"
+```
+
+### 2.5 MQL4 Integration Helper
+
+```mql4
+// Include/DependencyChecker.mqh
+// MQL4 helper for dependency validation during EA initialization
+
+//+------------------------------------------------------------------+
+//| Simple dependency checker for MQL4 EAs                          |
+//+------------------------------------------------------------------+
+class CDependencyChecker {
+private:
+    string m_symbol;
+    string m_configFile;
+    string m_signalFile;
+    string m_responseFile;
+    string m_heartbeatFile;
+    
+public:
+    CDependencyChecker(string symbol);
+    bool ValidateAllDependencies();
+    bool CheckHealthFile(string filename);
+    bool CheckConfigFile();
+    bool CheckSignalFile();
+    bool CheckBridgeConnectivity();
+    bool WriteHeartbeat(string status);
+};
+
+//+------------------------------------------------------------------+
+//| Constructor                                                      |
+//+------------------------------------------------------------------+
+CDependencyChecker::CDependencyChecker(string symbol) {
+    m_symbol = symbol;
+    m_configFile = symbol + "_config.csv";
+    m_signalFile = symbol + "_signals.csv";
+    m_responseFile = symbol + "_responses.csv";
+    m_heartbeatFile = symbol + "_heartbeat.csv";
+}
+
+//+------------------------------------------------------------------+
+//| Validate all dependencies required for EA operation             |
+//+------------------------------------------------------------------+
+bool CDependencyChecker::ValidateAllDependencies() {
+    Print(StringFormat("=== DEPENDENCY CHECK: %s ===", m_symbol));
+    
+    bool allValid = true;
+    
+    // Check SignalService health
+    if (CheckHealthFile("health_signal_service.txt")) {
+        Print("✅ SignalService: Healthy");
+    } else {
+        Print("❌ SignalService: Unhealthy or not responding");
+        allValid = false;
+    }
+    
+    // Check MarketDataService health
+    if (CheckHealthFile("health_market_data.txt")) {
+        Print("✅ MarketDataService: Healthy");
+    } else {
+        Print("⚠️  MarketDataService: Unhealthy - degraded mode");
+        // Non-critical for EA operation
+    }
+    
+    // Check configuration file
+    if (CheckConfigFile()) {
+        Print(StringFormat("✅ Config file: %s", m_configFile));
+    } else {
+        Print(StringFormat("❌ Config file missing: %s", m_configFile));
+        allValid = false;
+    }
+    
+    // Check signal file (should exist but may be empty)
+    if (FileIsExist(m_signalFile, FILE_COMMON)) {
+        Print(StringFormat("✅ Signal file: %s", m_signalFile));
+    } else {
+        Print(StringFormat("⚠️  Signal file not found: %s", m_signalFile));
+        // Create empty signal file
+        int handle = FileOpen(m_signalFile, FILE_WRITE | FILE_COMMON | FILE_CSV);
+        if (handle != INVALID_HANDLE) {
+            FileWriteString(handle, "uuid,symbol,direction,confidence,timestamp");
+            FileClose(handle);
+            Print("✅ Created empty signal file");
+        }
+    }
+    
+    // Check bridge connectivity
+    if (CheckBridgeConnectivity()) {
+        Print("✅ Bridge connectivity: Available");
+    } else {
+        Print("❌ Bridge connectivity: No bridges available");
+        allValid = false;
+    }
+    
+    // Create initial heartbeat
+    WriteHeartbeat("INITIALIZING");
+    
+    Print(StringFormat("=== DEPENDENCY CHECK %s ===", allValid ? "PASSED" : "FAILED"));
+    
+    return allValid;
+}
+
+//+------------------------------------------------------------------+
+//| Check if health file exists and is recent                       |
+//+------------------------------------------------------------------+
+bool CDependencyChecker::CheckHealthFile(string filename) {
+    if (!FileIsExist(filename, FILE_COMMON)) {
+        return false;
+    }
+    
+    // Check if file is recent (within last 2 minutes)
+    datetime fileTime = (datetime)FileGetInteger(filename, FILE_MODIFY_DATE, FILE_COMMON);
+    datetime currentTime = TimeCurrent();
+    
+    return (currentTime - fileTime) < 120; // 2 minutes
+}
+
+//+------------------------------------------------------------------+
+//| Check configuration file exists and has required fields         |
+//+------------------------------------------------------------------+
+bool CDependencyChecker::CheckConfigFile() {
+    if (!FileIsExist(m_configFile, FILE_COMMON)) {
+        return false;
+    }
+    
+    // Basic validation - check file has content
+    int handle = FileOpen(m_configFile, FILE_READ | FILE_COMMON | FILE_CSV);
+    if (handle == INVALID_HANDLE) {
+        return false;
+    }
+    
+    bool hasContent = false;
+    int lineCount = 0;
+    
+    while (!FileIsEnding(handle) && lineCount < 10) {
+        string line = FileReadString(handle);
+        if (StringLen(line) > 0) {
+            hasContent = true;
+        }
+        lineCount++;
+    }
+    
+    FileClose(handle);
+    
+    return hasContent && lineCount > 1; // At least header + one config line
+}
+
+//+------------------------------------------------------------------+
+//| Check bridge connectivity by testing status files              |
+//+------------------------------------------------------------------+
+bool CDependencyChecker::CheckBridgeConnectivity() {
+    // Check DLL+Socket bridge
+    if (CheckHealthFile("bridge_dll_socket_status.txt")) {
+        return true;
+    }
+    
+    // Check Named Pipes bridge
+    if (CheckHealthFile("bridge_named_pipes_status.txt")) {
+        return true;
+    }
+    
+    // Check File-based bridge (test write access)
+    string testFile = "bridge_test_" + m_symbol + ".txt";
+    int handle = FileOpen(testFile, FILE_WRITE | FILE_COMMON);
+    if (handle != INVALID_HANDLE) {
+        FileWriteString(handle, "test");
+        FileClose(handle);
+        FileDelete(testFile, FILE_COMMON);
+        return true;
+    }
+    
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//| Write heartbeat file with current status                        |
+//+------------------------------------------------------------------+
+bool CDependencyChecker::WriteHeartbeat(string status) {
+    int handle = FileOpen(m_heartbeatFile, FILE_WRITE | FILE_COMMON | FILE_CSV);
+    if (handle == INVALID_HANDLE) {
+        return false;
+    }
+    
+    // Write CSV format: symbol,status,timestamp,magic_number
+    FileWriteString(handle, m_symbol);
+    FileWriteString(handle, status);
+    FileWriteInteger(handle, (int)TimeCurrent());
+    FileWriteInteger(handle, MagicNumber);
+    
+    FileClose(handle);
+    return true;
+}
+
+// Usage in EA OnInit():
+/*
+int OnInit() {
+    CDependencyChecker depChecker(Symbol());
+    
+    if (!depChecker.ValidateAllDependencies()) {
+        Print("CRITICAL: EA dependencies not satisfied");
+        return INIT_FAILED;
+    }
+    
+    Print("✅ All dependencies validated - EA ready");
+    return INIT_SUCCEEDED;
+}
+
+// Usage in EA OnTick():
+void OnTick() {
+    static datetime lastHeartbeat = 0;
+    
+    if (TimeCurrent() - lastHeartbeat > 30) { // Every 30 seconds
+        CDependencyChecker depChecker(Symbol());
+        depChecker.WriteHeartbeat("RUNNING");
+        lastHeartbeat = TimeCurrent();
+    }
+    
+    // Your trading logic here...
+}
+*/
+```
+
+## 3. Usage Instructions
+
+### 3.1 Initial Setup
+
+```bash
+# 1. Create directory structure
+mkdir -p scripts docs/diagrams
+
+# 2. Place files
+# - dependency_manifest.yaml (root)
+# - scripts/validate_dependencies.py
+# - scripts/analyze_impact.py  
+# - scripts/generate_diagrams.py
+# - .git/hooks/pre-commit
+
+# 3. Make scripts executable
+chmod +x scripts/*.py
+chmod +x .git/hooks/pre-commit
+
+# 4. Install Python dependencies
+pip install pyyaml
+
+# 5. Run initial validation
+python scripts/validate_dependencies.py
+
+# 6. Generate initial diagrams
+python scripts/generate_diagrams.py
+```
+
+### 3.2 Daily Usage
+
+```bash
+# Check system dependencies
+python scripts/validate_dependencies.py
+
+# Analyze impact before making changes
+python scripts/analyze_impact.py SignalService --change-type interface_changes
+
+# Update diagrams after changes
+python scripts/generate_diagrams.py
+
+# The pre-commit hook runs automatically on git commit
+```
+
+This complete dependency management system provides:
+
+✅ **Central Manifest** - Single source of truth for all dependencies  
+✅ **Automated Validation** - Checks health files, missing files, critical dependencies  
+✅ **Change Impact Analysis** - Shows exactly what breaks when you change something  
+✅ **Visual Diagrams** - Auto-generated Mermaid diagrams for documentation  
+✅ **MQL4 Integration** - Simple dependency checking in EA initialization  
+✅ **Git Integration** - Pre-commit hooks ensure dependencies stay valid  
+✅ **Practical Implementation** - Works with your existing architecture  
+
+The system is designed to be **incrementally adoptable** - you can start with the basic manifest and add validation/automation over time.

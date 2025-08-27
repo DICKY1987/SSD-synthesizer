@@ -1,0 +1,31 @@
+# YAML File: yaml_conversion_log.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 18:52:34
+# Type: General YAML
+
+# File metadata
+_metadata:
+  filename: "yaml_conversion_log.yaml"
+  conversion_date: "2025-06-23 18:52:34"
+  source_format: "txt"
+  target_format: "yaml"
+  auto_generated: true
+
+# Original content
+content: |
+  2025-06-23 18:52:34,225 - INFO - Found 2 .txt files to convert to YAML
+  2025-06-23 18:52:34,226 - INFO - Detected type: DOCKER for mql4_file_operations_fixed.txt
+
+# Additional YAML structures can be added here
+# Example structure:
+# configuration:
+#   key1: value1
+#   key2: value2
+#   nested:
+#     subkey1: subvalue1
+#     subkey2: subvalue2
+# 
+# list_example:
+#   - item1
+#   - item2
+#   - item3

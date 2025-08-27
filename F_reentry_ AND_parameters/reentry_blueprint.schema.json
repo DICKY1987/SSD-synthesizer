@@ -1,0 +1,115 @@
+{
+  "$id": "sandbox:/mnt/data/reentry_blueprint.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Reentry Multi-Dimensional Matrix Blueprint",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "conventions",
+    "enumerations",
+    "persistence",
+    "rules",
+    "ui_requirements"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "conventions": {
+      "type": "object",
+      "required": [
+        "canonical_coordinate_order",
+        "id_format"
+      ],
+      "properties": {
+        "canonical_coordinate_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 6,
+          "maxItems": 6
+        },
+        "id_format": {
+          "type": "object",
+          "required": [
+            "readable",
+            "compact"
+          ],
+          "properties": {
+            "readable": {
+              "type": "object",
+              "required": [
+                "template",
+                "regex"
+              ],
+              "properties": {
+                "template": {
+                  "type": "string"
+                },
+                "regex": {
+                  "type": "string"
+                }
+              }
+            },
+            "compact": {
+              "type": "object",
+              "required": [
+                "template",
+                "regex"
+              ],
+              "properties": {
+                "template": {
+                  "type": "string"
+                },
+                "regex": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "enumerations": {
+      "type": "object",
+      "required": [
+        "signal_type",
+        "time_category",
+        "outcome",
+        "context",
+        "symbol",
+        "generation"
+      ],
+      "properties": {
+        "signal_type": {
+          "type": "object"
+        },
+        "time_category": {
+          "type": "object"
+        },
+        "outcome": {
+          "type": "object"
+        },
+        "context": {
+          "type": "object"
+        },
+        "symbol": {
+          "type": "object"
+        },
+        "generation": {
+          "type": "object"
+        }
+      }
+    },
+    "persistence": {
+      "type": "object"
+    },
+    "rules": {
+      "type": "object"
+    },
+    "ui_requirements": {
+      "type": "object"
+    }
+  }
+}

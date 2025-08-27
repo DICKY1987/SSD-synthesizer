@@ -1,0 +1,201 @@
+# HUEY_P Trading System - Python Dependencies
+# Production requirements for Python backend service
+# Version: 1.0.0
+# Last Updated: 2025-07-03
+# Compatible with: Python 3.11+
+
+# =============================================================================
+# CORE WEB FRAMEWORK - FastAPI for REST API and WebSocket support
+# =============================================================================
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+starlette==0.27.0
+
+# =============================================================================
+# ASYNC COMMUNICATION & NETWORKING
+# =============================================================================
+aiohttp==3.9.1
+aiofiles==23.2.1
+websockets==12.0
+asyncio-mqtt==0.13.0
+httpx==0.25.2
+
+# =============================================================================
+# DATABASE & DATA PERSISTENCE
+# =============================================================================
+sqlalchemy==2.0.23
+alembic==1.13.1
+aiosqlite==0.19.0
+sqlite-utils==3.35.2
+
+# =============================================================================
+# CONFIGURATION MANAGEMENT
+# =============================================================================
+pyyaml==6.0.1
+python-dotenv==1.0.0
+configparser==6.0.0
+jsonschema==4.20.0
+
+# =============================================================================
+# DATA PROCESSING & ANALYSIS
+# =============================================================================
+pandas==2.1.3
+numpy==1.25.2
+scipy==1.11.4
+pytz==2023.3
+python-dateutil==2.8.2
+
+# =============================================================================
+# MACHINE LEARNING & ANALYTICS
+# =============================================================================
+scikit-learn==1.3.2
+joblib==1.3.2
+pickle-mixin==1.0.2
+
+# =============================================================================
+# SIGNAL PROCESSING & TECHNICAL ANALYSIS
+# =============================================================================
+ta-lib==0.4.28
+pandas-ta==0.3.14b0
+
+# =============================================================================
+# LOGGING & MONITORING
+# =============================================================================
+structlog==23.2.0
+rich==13.7.0
+prometheus-client==0.19.0
+
+# =============================================================================
+# SECURITY & ENCRYPTION
+# =============================================================================
+cryptography==41.0.8
+bcrypt==4.1.2
+passlib[bcrypt]==1.7.4
+
+# =============================================================================
+# TESTING FRAMEWORK (Development)
+# =============================================================================
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-xdist==3.5.0
+
+# =============================================================================
+# CODE QUALITY & FORMATTING (Development)
+# =============================================================================
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.5.0
+
+# =============================================================================
+# UTILITY LIBRARIES
+# =============================================================================
+click==8.1.7
+requests==2.31.0
+urllib3==2.1.0
+certifi==2023.11.17
+
+# =============================================================================
+# JSON & SERIALIZATION
+# =============================================================================
+orjson==3.9.10
+msgpack==1.0.7
+
+# =============================================================================
+# SYSTEM & PROCESS MANAGEMENT
+# =============================================================================
+psutil==5.9.6
+watchdog==3.0.0
+
+# =============================================================================
+# DEVELOPMENT DEPENDENCIES (Optional - include in requirements-dev.txt)
+# =============================================================================
+# These are included here for completeness but should be moved to
+# requirements-dev.txt for production deployments
+
+# Development server with hot reload
+uvicorn[standard]==0.24.0
+
+# API documentation
+sphinx==7.2.6
+sphinx-rtd-theme==1.3.0
+
+# Debugging tools
+pdb++==0.10.3
+ipython==8.18.1
+jupyter==1.0.0
+
+# Performance profiling
+py-spy==0.3.14
+memory-profiler==0.61.0
+
+# =============================================================================
+# PLATFORM-SPECIFIC DEPENDENCIES
+# =============================================================================
+# Windows-specific dependencies for MT4 integration
+pywin32==306; sys_platform == "win32"
+wmi==1.5.1; sys_platform == "win32"
+
+# =============================================================================
+# COMMUNICATION BRIDGE DEPENDENCIES
+# =============================================================================
+# For C++ DLL integration and named pipes
+cffi==1.16.0
+ctypes-struct==1.1.1
+
+# =============================================================================
+# FINANCIAL DATA & MARKET CONNECTIVITY (Optional)
+# =============================================================================
+# Uncomment if integrating with external data providers
+# alpha-vantage==2.3.1
+# yfinance==0.2.18
+# ccxt==4.1.47
+
+# =============================================================================
+# DOCKER & CONTAINERIZATION SUPPORT
+# =============================================================================
+gunicorn==21.2.0  # Alternative WSGI server for production
+
+# =============================================================================
+# VERSION CONSTRAINTS & COMPATIBILITY
+# =============================================================================
+# Ensure compatibility with Python 3.11+
+setuptools>=68.0.0
+wheel>=0.41.0
+pip>=23.0.0
+
+# =============================================================================
+# SECURITY AUDIT TOOLS (Development)
+# =============================================================================
+safety==2.3.5
+bandit==1.7.5
+
+# =============================================================================
+# ENVIRONMENT & DEPLOYMENT
+# =============================================================================
+python-multipart==0.0.6  # For file uploads in FastAPI
+email-validator==2.1.0   # For email validation in pydantic
+
+# =============================================================================
+# NOTES FOR DEPLOYMENT
+# =============================================================================
+# 1. For production, create requirements-prod.txt with only runtime dependencies
+# 2. Use pip-tools to generate locked versions: pip-compile requirements.in
+# 3. Regular security updates: pip-audit requirements.txt
+# 4. Performance monitoring: pip install --upgrade pip setuptools wheel
+# 5. Virtual environment: python -m venv venv && source venv/bin/activate
+#
+# INSTALLATION COMMANDS:
+# Development: pip install -r requirements.txt
+# Production:  pip install --no-dev -r requirements.txt
+# Testing:     pip install -r requirements.txt pytest
+#
+# DOCKER BUILD:
+# docker build --target production -t huey-p-trading:latest .
+# docker build --target development -t huey-p-trading:dev .
+# docker build --target testing -t huey-p-trading:test .

@@ -1,0 +1,337 @@
+# Docker Compose: mql4_file_operations_fixed.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 18:52:34
+# Type: Docker Compose YAML
+
+version: '3.8'
+
+# Metadata
+x-metadata:
+  conversion_date: "2025-06-23 18:52:34"
+  source_file: "mql4_file_operations_fixed.yaml"
+  auto_generated: true
+
+services:
+  app:
+    image: "auto-generated:latest"
+    container_name: "auto-generated-app"
+    environment:
+      - CONVERSION_DATE=2025-06-23 18:52:34
+    
+# Original content integrated below
+  # GitHub Workflow: mql4_file_operations.yaml - FIXED VERSION
+  # Auto-generated from TXT conversion
+  # Conversion date: 2025-06-23 18:16:14
+  # Type: GitHub Actions Workflow
+
+  name: "Auto-generated Workflow"
+
+  on:
+    push:
+      branches: [ main, develop ]
+    pull_request:
+      branches: [ main ]
+
+  env:
+    CONVERSION_DATE: "2025-06-23 18:16:14"
+
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup environment
+        run: |
+          echo "Setting up environment..."
+
+      # Original workflow content
+    purpose: "Standardize file system interactions for signal processing and response writing"
+
+    file_location_restrictions:
+      allowed_directories: "terminal_dir\\experts\\files directory and subdirectories only"
+      signal_files: "SignalPath + TradingPair + '_signals.csv'"
+      response_files: "ResponsePath + TradingPair + '_responses.csv'"
+      path_construction: "Use variables, never hardcode paths"
+
+    signal_file_reading:
+      mandatory_pattern: |
+        string ReadSignalFile() {
+          // MANDATORY: Construct file path from TRADING_PAIR variable
+          string l_signal_file_path_string = SignalPath + TradingPair + "_signals.csv";
+
+          // MANDATORY: Open file with FILE_READ and FILE_CSV flags
+          int l_file_handle_int = FileOpen(l_signal_file_path_string, FILE_READ|FILE_CSV, ";");
+
+          // MANDATORY: Check for invalid handle (< 0 indicates failure, not < 1)
+          if(l_file_handle_int < 0) {
+            int l_error_code_int = GetLastError();
+            Print("ERROR: Cannot open signal file: ", l_signal_file_path_string, " Error: ", l_error_code_int);
+            return("");
+          }
+
+          string l_signal_data_string = "";
+
+          // MANDATORY: Read header line for validation
+          if(!FileIsEnding(l_file_handle_int)) {
+            string l_header_line_string = FileReadString(l_file_handle_int);
+
+            // MANDATORY: Validate expected header format
+            if(StringFind(l_header_line_string, "signal_id") == -1) {
+              Print("ERROR: Invalid signal file header format");
+              FileClose(l_file_handle_int);
+              return("");
+            }
+          } else {
+            Print("ERROR: Signal file is empty");
+            FileClose(l_file_handle_int);
+            return("");
+          }
+
+          // MANDATORY: Read data line
+          if(!FileIsEnding(l_file_handle_int)) {
+            l_signal_data_string = FileReadString(l_file_handle_int);
+          }
+
+          // MANDATORY: Close file handle
+          FileClose(l_file_handle_int);
+
+          if(StringLen(l_signal_data_string) > 0) {
+            Print("Signal file read successfully");
+          } else {
+            Print("WARNING: No signal data line found in file");
+          }
+
+          return(l_signal_data_string);
+        }
+
+      header_validation:
+        required_fields: ["signal_id", "symbol", "direction", "entry_price", "stop_loss", "take_profit"]
+        validation_method: "StringFind() to check field presence"
+        failure_action: "Close file and return empty string"
+
+      error_handling:
+        invalid_handle: "if(l_file_handle_int < 0)"
+        empty_file: "if(FileIsEnding(l_file_handle_int))"
+        invalid_header: "if(StringFind(header, required_field) == -1)"
+        mandatory_logging: "Print error with file path and error code"
+
+    response_file_writing:
+      mandatory_pattern: |
+        bool WriteTradeResponse(int trade_result, string signal_data) {
+          // MANDATORY: Construct response file path
+          string l_response_file_path_string = ResponsePath + TradingPair + "_responses.csv";
+
+          // MANDATORY: Open file for writing (FILE_WRITE creates new file or completely overwrites existing - ALL previous data is lost)
+          int l_file_handle_int = FileOpen(l_response_file_path_string, FILE_WRITE|FILE_CSV, ",");
+
+          if(l_file_handle_int < 0) {
+            Print("ERROR: Cannot open response file for writing. Error: ", GetLastError());
+            return(false);
+          }
+
+          // MANDATORY: Write header in exact specified order
+          FileWrite(l_file_handle_int, "signal_id", "trade_id", "status", "execution_price", "timestamp");
+
+          // MANDATORY: Prepare data fields in correct order
+          string l_signal_id_string = ParseSignalField(signal_data, "signal_id");
+          string l_status_string = (trade_result > 0) ? "EXECUTED" : "FAILED";
+          double l_exec_price_double = (trade_result > 0) ? OrderOpenPrice() : 0.0;
+          string l_timestamp_string = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+
+          // MANDATORY: Write data fields (FileWrite adds separators automatically)
+          FileWrite(l_file_handle_int, l_signal_id_string, trade_result, l_status_string, l_exec_price_double, l_timestamp_string);
+
+          // MANDATORY: Close file handle
+          FileClose(l_file_handle_int);
+
+          Print("Response file written successfully: ", l_response_file_path_string);
+          return(true);
+        }
+
+      header_field_order:
+        mandatory_sequence: ["signal_id", "trade_id", "status", "execution_price", "timestamp", "lot_size", "stop_loss", "take_profit", "error_message"]
+        separator: "Comma (,) for response files"
+        automatic_conversion: "int and double types automatically converted to string"
+
+    file_operation_constants:
+      open_modes:
+        FILE_READ: "Read mode - file must exist"
+        FILE_WRITE: "Write mode - creates new file or completely overwrites existing file (ALL previous data is permanently lost)"
+        FILE_CSV: "CSV format with automatic delimiter handling" 
+        FILE_BIN: "Binary format"
+
+      seek_origins:
+        SEEK_SET: "From beginning of file"
+        SEEK_CUR: "From current position"
+        SEEK_END: "From end of file"
+
+      data_sizes:
+        CHAR_VALUE: "1 byte"
+        SHORT_VALUE: "2 bytes"
+        LONG_VALUE: "4 bytes (default)"
+        FLOAT_VALUE: "4 bytes floating point"
+        DOUBLE_VALUE: "8 bytes floating point (default)"
+
+    file_write_behavior_critical:
+      FILE_WRITE_WARNING: |
+        CRITICAL: FILE_WRITE mode behavior from official documentation:
+        "A try to open a file in this mode results in opening a file of a zero length. 
+         Even if there was some information in the file before opening, it will be erased."
+
+        This means FILE_WRITE completely destroys existing file content.
+        Use FILE_READ|FILE_WRITE for append operations.
+
+    error_handling:
+      file_open_errors:
+        handle_check: "if(l_file_handle_int < 0)"  # Fixed: Use < 0, not < 1
+        error_logging: |
+          int l_error_code_int = GetLastError();
+          Print("ERROR: File operation failed. Error code: ", l_error_code_int);
+
+      mandatory_error_handler: |
+        int HandleFileError(string operation, string file_path) {
+          int l_error_code_int = GetLastError();
+          string l_error_desc_string = "";
+
+          switch(l_error_code_int) {
+            case 0:
+              return(0); // No error
+            case 4103:
+              l_error_desc_string = "Cannot open file";
+              break;
+            case 4102:
+              l_error_desc_string = "Too many opened files";
+              break;
+            case 4101:
+              l_error_desc_string = "Wrong file name";
+              break;
+            case 4100:
+              l_error_desc_string = "Some file error";
+              break;
+            case 4099:
+              l_error_desc_string = "End of file reached";
+              break;
+            case 4104:
+              l_error_desc_string = "Incompatible access to file";
+              break;
+            default:
+              l_error_desc_string = "Unknown file error";
+              break;
+          }
+
+          string l_timestamp_string = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+          Print("[", l_timestamp_string, "] FILE ERROR in ", operation, 
+                " for file: ", file_path, 
+                " Error code: ", l_error_code_int, 
+                " Description: ", l_error_desc_string);
+
+          return(l_error_code_int);
+        }
+
+    mandatory_file_functions:
+      FileOpen:
+        signature: "int FileOpen(string filename, int mode, int delimiter=';')"
+        return: "File handle (>= 0) or negative value if failure"
+        modes: "FILE_READ, FILE_WRITE, FILE_CSV, FILE_BIN (can be combined)"
+        concurrent_limit: "Maximum 32 files can be opened simultaneously"
+
+      FileClose:
+        signature: "void FileClose(int handle)"
+        mandatory: "ALWAYS close opened file handles"
+
+      FileReadString:
+        signature: "string FileReadString(int handle, int length=0)"
+        usage: "Read string to delimiter (CSV) or specified length (binary)"
+
+      FileWrite:
+        signature: "int FileWrite(int handle, ...)"
+        usage: "Write values with automatic delimiter insertion"
+        return: "Number of characters written or negative on error"
+        max_parameters: "Cannot be more than 63 parameters"
+
+      FileIsEnding:
+        signature: "bool FileIsEnding(int handle)"
+        usage: "Check if file pointer is at end of file"
+
+      GetLastError:
+        signature: "int GetLastError()"
+        usage: "Get error code from last file operation"
+
+    prohibited_patterns:
+      forbidden_functions:
+        - "FileOpenHistory() for signal files - use FileOpen() only"
+        - "Hardcoded file paths - always use variables"
+        - "Reading without header validation"
+        - "Writing without proper field ordering"
+
+      forbidden_practices:
+        - |
+          // FORBIDDEN: No handle validation
+          int handle = FileOpen("file.csv", FILE_READ);
+          string data = FileReadString(handle); // Dangerous if handle invalid
+
+        - |
+          // FORBIDDEN: Not closing file handles
+          int handle = FileOpen("response.csv", FILE_WRITE);
+          FileWrite(handle, "data");
+          // Missing FileClose(handle) - RESOURCE LEAK
+
+        - |
+          // FORBIDDEN: Hardcoded paths
+          FileOpen("Data\\signals\\EURUSD_signals.csv", FILE_READ);
+
+        - |
+          // FORBIDDEN: Wrong field order in response
+          FileWrite(handle, status, signal_id, price); // Wrong order
+
+        - |
+          // FORBIDDEN: Incorrect handle validation
+          if(handle < 1) // Should be: if(handle < 0)
+
+    file_validation:
+      signal_file_validation:
+        check_exists: "FileOpen() success indicates file exists"
+        check_empty: "Use FileIsEnding() immediately after open"
+        check_header: "Read first line and validate required fields"
+        check_data: "Ensure data line exists and is not empty"
+
+      response_file_validation:
+        overwrite_policy: "FILE_WRITE mode completely erases existing files"
+        header_required: "Always write header line first"
+        field_order: "Maintain consistent field ordering"
+        close_verification: "Always close after writing"
+
+    file_paths:
+      signal_path_construction: 'SignalPath + TradingPair + "_signals.csv"'
+      response_path_construction: 'ResponsePath + TradingPair + "_responses.csv"'
+      directory_restrictions: "Files must be in terminal_dir\\experts\\files or subdirectories"
+      variable_usage: "Use SignalPath, ResponsePath, and TradingPair variables"
+
+    data_parsing:
+      signal_parsing: |
+        string ParseSignalField(string signal_data, string field_name) {
+          // Implementation to extract specific field from CSV line
+          // Based on field position and delimiter
+          return(extracted_value);
+        }
+
+      csv_delimiters:
+        signal_files: "Semicolon (;) separator"
+        response_files: "Comma (,) separator"
+        custom_delimiter: "Third parameter in FileOpen()"
+
+      - name: Complete workflow
+        run: |
+          echo "Workflow completed successfully"
+
+# Additional services can be defined here
+# networks:
+#   default:
+#     driver: bridge
+#
+# volumes:
+#   data:
+#     driver: local

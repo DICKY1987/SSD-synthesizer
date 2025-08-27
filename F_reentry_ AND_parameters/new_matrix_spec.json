@@ -1,0 +1,123 @@
+{
+  "matrix_version": "post-stack-2025-08-17",
+  "signals": [
+    "ECO_HIGH",
+    "ECO_MED",
+    "ANTICIPATION_1HR",
+    "ANTICIPATION_8HR",
+    "EQUITY_OPEN_ASIA",
+    "EQUITY_OPEN_EUROPE",
+    "EQUITY_OPEN_USA",
+    "ALL_INDICATORS"
+  ],
+  "removed_signals": [
+    "ANTICIPATION_4HR",
+    "ANTICIPATION_12HR"
+  ],
+  "future_buckets": [
+    {
+      "name": "IMMEDIATE",
+      "range_min": 0,
+      "range_max": 15
+    },
+    {
+      "name": "SHORT",
+      "range_min": 16,
+      "range_max": 60
+    },
+    {
+      "name": "LONG",
+      "range_min": 61,
+      "range_max": 480
+    },
+    {
+      "name": "EXTENDED",
+      "range_min": 481,
+      "range_max": 1440
+    }
+  ],
+  "reentries": {
+    "generations": 2,
+    "durations": {
+      "applies_to_signals": [
+        "ECO_HIGH",
+        "ECO_MED"
+      ],
+      "buckets": [
+        {
+          "name": "FLASH",
+          "range_min": 0,
+          "range_max": 15
+        },
+        {
+          "name": "QUICK",
+          "range_min": 16,
+          "range_max": 60
+        },
+        {
+          "name": "LONG",
+          "range_min": 61,
+          "range_max": 90
+        },
+        {
+          "name": "EXTENDED",
+          "range_min": 91,
+          "range_max": null
+        }
+      ]
+    },
+    "outcomes": {
+      "standard": {
+        "count": 6,
+        "applies_to_signals": [
+          "ALL_INDICATORS",
+          "ECO_HIGH",
+          "ECO_MED"
+        ]
+      },
+      "compressed": {
+        "count": 3,
+        "applies_to_signals": [
+          "ANTICIPATION_1HR",
+          "ANTICIPATION_8HR",
+          "EQUITY_OPEN_ASIA",
+          "EQUITY_OPEN_EUROPE",
+          "EQUITY_OPEN_USA"
+        ],
+        "definitions": [
+          {
+            "name": "BUCKET_1",
+            "meaning": "Breakeven OR Partial loss OR Stop loss"
+          },
+          {
+            "name": "BUCKET_4",
+            "meaning": "Partial profit"
+          },
+          {
+            "name": "BUCKET_5",
+            "meaning": "Hit take profit target"
+          }
+        ]
+      }
+    }
+  },
+  "counting": {
+    "formula": {
+      "original": "Signals * FutureBuckets",
+      "reentries_split": "2 * [ (|ECO-like| * 6 * 4 * FutureBuckets) + (|Compressed| * 3 * 1 * FutureBuckets) + (|StdNoDur| * 6 * 1 * FutureBuckets) ]",
+      "total_per_symbol": "original + reentries_split"
+    },
+    "cardinalities": {
+      "Signals": 8,
+      "FutureBuckets": 4,
+      "Durations(ECO_HIGH/ECO_MED)": 4,
+      "Outcomes(Standard)": 6,
+      "Outcomes(Compressed)": 3
+    },
+    "results": {
+      "original_per_symbol": 32,
+      "reentry_total_per_symbol": 552,
+      "total_per_symbol": 584
+    }
+  }
+}

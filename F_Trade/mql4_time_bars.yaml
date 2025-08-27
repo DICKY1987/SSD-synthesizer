@@ -1,0 +1,167 @@
+# GitHub Workflow: mql4_time_bars.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 17:54:08
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 17:54:08"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  purpose: "Eliminate ambiguity in time-based operations and bar detection"
+
+  time_functions:
+    server_time: 
+      function: "TimeCurrent()"
+      usage: "Always use for trading logic and time comparisons"
+      description: "Returns current server time"
+
+    local_time:
+      function: "TimeLocal()"
+      usage: "Never use for trading logic"
+      restriction: "Only for display/logging purposes"
+
+    bar_time:
+      function: "Time[index]"
+      usage: "Access bar open time"
+      description: "Time[0] = current bar, Time[1] = previous bar"
+
+  new_bar_detection:
+    pattern: "static datetime s_last_bar_time_datetime = 0;"
+    validation: "if(Time[0] != s_last_bar_time_datetime)"
+    implementation: |
+      bool IsNewBar() {
+        static datetime s_last_bar_time_datetime = 0;
+
+        if(Time[0] != s_last_bar_time_datetime) {
+          s_last_bar_time_datetime = Time[0];
+          return(true);
+        }
+
+        return(false);
+      }
+
+    usage_in_start: |
+      int start() {
+        if(!IsNewBar()) {
+          return(0); // Exit if not a new bar
+        }
+
+        // Process new bar logic here
+        // ...
+
+        return(0);
+      }
+
+  bar_data_access:
+    current_bar: "Time[0], Open[0], High[0], Low[0], Close[0], Volume[0]"
+    previous_bar: "Time[1], Open[1], High[1], Low[1], Close[1], Volume[1]"
+    historical_bar: "Time[n], Open[n], High[n], Low[n], Close[n], Volume[n]"
+    bar_count: "Bars variable contains total number of bars"
+
+  bar_completion:
+    concept: "Bar is complete when new bar starts"
+    detection: "Compare Time[0] with stored previous Time[0]"
+    timing: "Check at start of start() function"
+
+  time_calculations:
+    seconds_per_period:
+      M1: 60
+      M5: 300
+      M15: 900
+      M30: 1800
+      H1: 3600
+      H4: 14400
+      D1: 86400
+      W1: 604800
+      MN1: 2629746
+
+    period_detection: "Period() returns current timeframe in minutes"
+
+    time_arithmetic: |
+      // Add hours to current time
+      datetime l_future_time_datetime = TimeCurrent() + (hours * 3600);
+
+      // Calculate bars between times
+      int l_bars_count_int = iBarShift(Symbol(), Period(), start_time, false);
+
+  time_validation:
+    trading_hours:
+      pattern: |
+        bool IsTradingHours() {
+          datetime l_current_time_datetime = TimeCurrent();
+          int l_hour_int = TimeHour(l_current_time_datetime);
+          int l_day_of_week_int = TimeDayOfWeek(l_current_time_datetime);
+
+          // Example: Monday to Friday, 8 AM to 5 PM
+          if(l_day_of_week_int >= 1 && l_day_of_week_int <= 5) {
+            if(l_hour_int >= 8 && l_hour_int < 17) {
+              return(true);
+            }
+          }
+
+          return(false);
+        }
+
+    weekend_check:
+      pattern: |
+        bool IsWeekend() {
+          int l_day_of_week_int = TimeDayOfWeek(TimeCurrent());
+          return(l_day_of_week_int == 0 || l_day_of_week_int == 6); // Sunday or Saturday
+        }
+
+  historical_data_access:
+    functions:
+      - "iTime(symbol, timeframe, shift) - bar open time"
+      - "iOpen(symbol, timeframe, shift) - bar open price"
+      - "iHigh(symbol, timeframe, shift) - bar high price"
+      - "iLow(symbol, timeframe, shift) - bar low price"
+      - "iClose(symbol, timeframe, shift) - bar close price"
+      - "iVolume(symbol, timeframe, shift) - bar volume"
+
+    multi_timeframe: |
+      // Access higher timeframe data
+      double l_h4_close_double = iClose(Symbol(), PERIOD_H4, 1);
+      double l_daily_high_double = iHigh(Symbol(), PERIOD_D1, 1);
+
+    validation: "Always check for valid data before use"
+
+  time_constants:
+    seconds_in_minute: 60
+    seconds_in_hour: 3600
+    seconds_in_day: 86400
+    seconds_in_week: 604800
+
+  timeframe_constants:
+    - "PERIOD_M1 = 1"
+    - "PERIOD_M5 = 5"
+    - "PERIOD_M15 = 15"
+    - "PERIOD_M30 = 30"
+    - "PERIOD_H1 = 60"
+    - "PERIOD_H4 = 240"
+    - "PERIOD_D1 = 1440"
+    - "PERIOD_W1 = 10080"
+    - "PERIOD_MN1 = 43200"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

@@ -1,0 +1,822 @@
+# HUEY_P_YAML_Exhaustive_File_Specification.yaml
+# This specification is the single source of truth for generating, testing,
+# deploying, and maintaining a software component. It is designed to be
+# machine-readable for full automation and resilient lifecycle management.
+
+# =============================================================================
+# 1. SPECIFICATION LIFECYCLE METADATA
+# Manages the state and review process of this specification itself.
+# =============================================================================
+spec_metadata:
+  version: "2.0.0" # Version of this specification file.
+  status: "APPROVED" # Current state: DRAFT, IN_REVIEW, APPROVED, FAILED_TESTS, PASSED, DEPRECATED.
+  author: "HUEY_P Development Team"
+  last_updated: "2025-07-05T02:35:00Z"
+  reviewers: # Records the approval workflow.
+    - approver: "risk_manager" #
+      status: "APPROVED"
+      timestamp: "2025-07-04T18:00:00Z"
+    - approver: "head_trader" #
+      status: "APPROVED"
+      timestamp: "2025-07-04T19:30:00Z"
+  change_history:
+    - version: "1.0.0"
+      date: "2025-07-01"
+      author: "HUEY_P Team"
+      summary: "Initial draft of the SignalService specification."
+    - version: "2.0.0"
+      date: "2025-07-05"
+      author: "HUEY_P Team"
+      summary: "Added explicit error handling and operational context."
+
+# =============================================================================
+# 2. FILE METADATA
+# Core identifiers for the file to be generated.
+# =============================================================================
+file_metadata:
+  filename: "HUEY_P_PY_Signal_Service.py" #
+  path: "src/services/"
+  purpose: "Generates trading signals based on market data and ML models."
+  language:
+    name: "python"
+    version: "3.10"
+    naming_conventions: # Explicitly state conventions.
+      functions: "snake_case" #
+      classes: "PascalCase" #
+      constants: "UPPER_SNAKE_CASE" #
+
+# =============================================================================
+# 3. DEPENDENCIES & IMPORTS
+# Defines all internal and external dependencies required by the file.
+# =============================================================================
+dependencies:
+  resolution_strategy: "fail_on_conflict" # STRATEGY: fail_on_conflict, use_latest
+  external_libraries:
+    - name: "pandas"
+      version: "2.0.3"
+      import_as: "pd"
+    - name: "scikit-learn"
+      version: "1.3.0"
+      import_as: "sklearn"
+  internal_modules:
+    - from: "src.models.trading_signal"
+      import: ["TradingSignal", "SignalDirection"]
+    - from: "src.utils.logger"
+      import: ["app_logger"]
+    - from: "src.interfaces.market_data_client"
+      import: ["MarketDataClient"]
+    - from: "src.exceptions"
+      import: ["ModelNotFoundError"]
+
+# =============================================================================
+# 4. DATA STRUCTURES
+# Defines any custom data structures created or used in this file.
+# =============================================================================
+data_structures:
+  - name: "SignalDirection"
+    type: "Enum"
+    description: "Enumeration for the direction of a trading signal."
+    values: ["BUY", "SELL", "HOLD"]
+
+# =============================================================================
+# 5. CORE COMPONENT DEFINITIONS
+# Detailed blueprint of all classes, methods, and functions.
+# =============================================================================
+components:
+  classes:
+    - name: "SignalService"
+      description: "Service to manage the lifecycle of trading signal generation."
+      attributes:
+        - name: "market_data_client"
+          type: "MarketDataClient"
+          description: "Client to fetch real-time market data."
+        - name: "model"
+          type: "sklearn.ensemble.RandomForestClassifier"
+          description: "The loaded in-memory machine learning model."
+      methods:
+        - name: "__init__"
+          parameters:
+            - name: "market_data_client"
+              type: "MarketDataClient"
+          logic:
+            - "self.market_data_client = market_data_client"
+            - "self.model = self.load_model(model_path=os.getenv('MODEL_PATH', 'models/default.pkl'))"
+        - name: "load_model"
+          parameters:
+            - name: "model_path"
+              type: "str"
+          returns:
+            type: "object"
+            description: "The deserialized model object."
+          logic:
+            - "app_logger.info(f'Loading model from {model_path}')"
+            - "try:"
+            - "  with open(model_path, 'rb') as f:"
+            - "    return pickle.load(f)"
+            - "except FileNotFoundError:"
+            - "  app_logger.error(f'Model file not found at {model_path}')"
+            - "  raise ModelNotFoundError(f'Model not found: {model_path}')"
+        - name: "generate_signal"
+          parameters:
+            - name: "symbol"
+              type: "str"
+          returns:
+            type: "TradingSignal"
+            can_be_none: true
+          logic_context: # Explicitly define context to reduce ambiguity.
+            - name: "CONFIDENCE_THRESHOLD"
+              source: "configuration"
+            - name: "SignalDirection"
+              source: "data_structures"
+          logic:
+            - "features = self.market_data_client.get_features(symbol)"
+            - "if features is None: return None"
+            - "prediction = self.model.predict(features)[0]"
+            - "confidence = self.model.predict_proba(features)[0].max()"
+            - "if confidence >= CONFIDENCE_THRESHOLD:"
+            - "  direction = SignalDirection.BUY if prediction == 1 else SignalDirection.SELL"
+            - "  return TradingSignal(symbol=symbol, direction=direction, confidence=confidence)"
+            - "return None"
+
+# =============================================================================
+# 6. CONFIGURATION
+# Defines all configuration parameters used in this file.
+# =============================================================================
+configuration:
+  - name: "CONFIDENCE_THRESHOLD"
+    type: "float"
+    description: "Minimum confidence level to generate a signal."
+    source: "environment_variable"
+    source_name: "SIGNAL_CONFIDENCE_THRESHOLD"
+    default_value: 0.85
+  - name: "MODEL_PATH"
+    type: "str"
+    description: "Path to the serialized ML model file."
+    source: "environment_variable"
+    source_name: "MODEL_PATH"
+    is_required: true
+
+# =============================================================================
+# 7. TESTING REQUIREMENTS & FEEDBACK
+# Defines test cases and captures feedback from the CI/CD pipeline.
+# =============================================================================
+testing:
+  feedback: # This section is updated automatically by the CI/CD pipeline.
+    last_run_status: "PASSED"
+    last_run_timestamp: "2025-07-05T01:30:00Z"
+    coverage_percentage: 92.5
+    report_url: "https://ci.huey-p.com/build/1138"
+  test_cases:
+    - type: "unit_test" #
+      component: "SignalService.generate_signal"
+      description: "Verify signal generation logic with a mocked model."
+      setup:
+        - "Initialize SignalService."
+        - "Mock 'self.market_data_client.get_features' to return a sample feature vector."
+      cases:
+        - name: "High Confidence Buy"
+          steps:
+            - "Mock 'self.model.predict' to return [1]."
+            - "Mock 'self.model.predict_proba' to return [[0.1, 0.9]]."
+          expected_outcome: "A TradingSignal is returned with direction BUY and confidence 0.9."
+        - name: "Low Confidence"
+          steps:
+            - "Mock 'self.model.predict' to return [0]."
+            - "Mock 'self.model.predict_proba' to return [[0.6, 0.4]]."
+          expected_outcome: "The method returns None."
+    - type: "integration_test" #
+      description: "Verify service works with a live (staging) MarketDataClient."
+      expected_outcome: "The service generates signals or returns None without raising exceptions over a 5-minute period."
+
+# =============================================================================
+# 8. OPERATIONAL CONTEXT
+# Defines how this file operates within a live environment.
+# =============================================================================
+operational_context:
+  deployment:
+    strategy: "rolling_deployment" #
+    platform: "docker_container" #
+    container_image: "huey_p/signal_service:latest"
+  monitoring:
+    health_check: #
+      type: "http_endpoint" #
+      endpoint: "/health"
+      expected_response: '{"status": "healthy"}'
+      interval: "30s"
+    metrics_to_expose: # Prometheus format
+      - name: "signals_generated_total"
+        type: "counter"
+        description: "Total number of trading signals generated."
+      - name: "signal_generation_latency_ms"
+        type: "histogram"
+        description: "Latency of the generate_signal method in milliseconds."
+  security:
+    data_at_rest_encryption: "aes_256" #
+    required_permissions:
+      - "Read access to the model file path."
+      - "Network access to the MarketDataClient endpoint."
+      
+# =============================================================================
+# 9. ENTRY POINT (MAIN BLOCK)
+# Defines the behavior when the script is run directly.
+# =============================================================================
+main_block:
+  is_runnable: true
+  description: "Runs a basic test of the service when executed directly."
+  logic:
+    - "client = MarketDataClient()"
+    - "service = SignalService(market_data_client=client)"
+    - "signal = service.generate_signal('EURUSD')"
+    - "print(f'Generated Signal: {signal}')"
+
+# =============================================================================
+# 10. OBJECT LIFECYCLE MANAGEMENT
+# Defines initialization, resource management, and cleanup patterns
+# =============================================================================
+object_lifecycle:
+  pattern: "singleton"  # singleton, per_request, pooled, prototype, factory
+  initialization:
+    strategy: "eager"  # eager, lazy, on_demand
+    failure_handling: "fail_fast"  # fail_fast, retry_with_backoff, fallback_mode
+    dependency_injection: true
+    validation_required: true
+    timeout_seconds: 30
+  
+  cleanup_strategy: "automatic"  # automatic, manual, finalizer, context_manager
+  resource_management:
+    auto_cleanup_resources:
+      - "database_connections"
+      - "file_handles"
+      - "network_sockets"
+      - "memory_caches"
+    cleanup_triggers:
+      - "object_destruction"
+      - "application_shutdown"
+      - "memory_pressure"
+    resource_limits:
+      max_memory_mb: 512
+      max_file_handles: 100
+      max_connections: 20
+
+  state_management:
+    immutable_after_init: false
+    state_validation_required: true
+    state_persistence: "none"  # none, file, database, cache
+    concurrent_modification_handling: "lock_based"  # lock_based, copy_on_write, immutable
+
+# =============================================================================
+# 11. DEPENDENCY MANAGEMENT
+# Defines how dependencies are injected and managed
+# =============================================================================
+dependency_injection:
+  framework: "manual"  # manual, dependency_injector, spring_like
+  required_dependencies:
+    - name: "market_data_client"
+      type: "MarketDataClient" 
+      validation: "interface_compliance"
+      fallback: "mock_client"
+      health_check_required: true
+  
+  optional_dependencies:
+    - name: "cache_client"
+      type: "CacheClient"
+      default_implementation: "NullCache"
+  
+  circular_dependency_detection: true
+  lazy_initialization: true
+
+# =============================================================================
+# 12. CONCURRENCY CONFIGURATION
+# Defines thread safety, async patterns, and synchronization
+# =============================================================================
+concurrency:
+  thread_safety: "thread_safe"  # thread_safe, not_thread_safe, immutable, conditional
+  async_support: true
+  synchronization:
+    strategy: "method_level_locks"  # method_level_locks, instance_lock, lock_free, actor_model
+    read_write_separation: true
+    deadlock_detection: true
+    lock_timeout_ms: 5000
+  
+  async_patterns:
+    - method: "generate_signal"
+      async_version: "generate_signal_async"
+      await_points:
+        - "await self.market_data_client.get_features_async(symbol)"
+        - "await self.model.predict_async(features)"
+      timeout_seconds: 10
+      cancellation_support: true
+  
+  parallel_processing:
+    batch_support: true
+    max_concurrent_operations: 10
+    queue_size: 1000
+    worker_pool_size: 5
+    backpressure_strategy: "drop_oldest"  # drop_oldest, block, raise_error
+
+# =============================================================================
+# 13. THREAD POOL CONFIGURATION
+# =============================================================================
+thread_pool:
+  core_pool_size: 5
+  max_pool_size: 20
+  keep_alive_time: 60  # seconds
+  queue_capacity: 100
+  rejection_policy: "caller_runs"  # caller_runs, abort, discard, discard_oldest
+
+# =============================================================================
+# 14. RESOURCE MANAGEMENT
+# Defines memory limits, connection pooling, and resource cleanup
+# =============================================================================
+resource_management:
+  memory_limits:
+    max_heap_size_mb: 1024
+    max_model_size_mb: 512
+    max_cache_size_mb: 256
+    memory_pressure_threshold: 85  # percent
+    
+  connection_management:
+    database:
+      pool_size: 10
+      max_pool_size: 20
+      connection_timeout: 30
+      idle_timeout: 300
+      validation_query: "SELECT 1"
+    
+    http_clients:
+      max_connections: 50
+      max_connections_per_host: 10
+      connection_timeout: 10
+      read_timeout: 30
+      keep_alive: true
+  
+  caching:
+    strategy: "lru_with_ttl"  # lru, lfu, ttl, lru_with_ttl
+    max_entries: 1000
+    default_ttl: 300  # seconds
+    memory_cleanup_threshold: 80  # percent
+    
+  file_management:
+    temp_file_cleanup: true
+    max_temp_files: 100
+    temp_file_ttl: 3600  # seconds
+    log_rotation:
+      max_size_mb: 100
+      max_files: 10
+      compression: true
+
+# =============================================================================
+# 15. GARBAGE COLLECTION TUNING
+# =============================================================================
+garbage_collection:
+  strategy: "adaptive"  # default, aggressive, conservative, adaptive
+  memory_pressure_gc: true
+  large_object_threshold_mb: 50
+  gc_monitoring: true
+
+# =============================================================================
+# 16. SECURITY CONFIGURATION
+# Defines input validation, sanitization, and security controls
+# =============================================================================
+security:
+  input_validation:
+    symbol:
+      pattern: "^[A-Z]{6,8}$"  # EURUSD, GBPJPY format
+      max_length: 8
+      min_length: 6
+      sanitization: "alphanumeric_uppercase_only"
+      required: true
+      custom_validators:
+        - "validate_currency_pair_exists"
+        - "validate_trading_hours"
+    
+    model_path:
+      pattern: "^[a-zA-Z0-9_/\\.-]+\\.pkl$"
+      max_length: 255
+      path_traversal_protection: true
+      whitelist_directories: ["/models", "/data/models"]
+      file_existence_required: true
+  
+  rate_limiting:
+    global:
+      max_requests_per_minute: 1000
+      max_requests_per_hour: 10000
+    per_method:
+      generate_signal:
+        max_calls_per_minute: 100
+        max_calls_per_symbol_per_minute: 10
+        burst_allowance: 20
+  
+  authentication:
+    required: true
+    methods: ["api_key", "jwt_token"]
+    api_key:
+      header_name: "X-API-Key"
+      encryption: "aes_256"
+      rotation_period_days: 90
+    
+  authorization:
+    rbac_enabled: true
+    roles:
+      - name: "signal_generator"
+        permissions: ["generate_signal", "load_model"]
+      - name: "admin"
+        permissions: ["*"]
+  
+  data_protection:
+    pii_detection: true
+    data_masking: true
+    encryption_at_rest: "aes_256"
+    encryption_in_transit: "tls_1_3"
+    
+  audit_logging:
+    security_events: true
+    failed_attempts: true
+    privilege_escalation: true
+    data_access: true
+
+# =============================================================================
+# 17. SQL INJECTION PROTECTION
+# =============================================================================
+sql_protection:
+  parameterized_queries_only: true
+  query_whitelist_enabled: true
+  sql_keywords_blocked: ["DROP", "DELETE", "TRUNCATE", "ALTER"]
+  
+# =============================================================================
+# 18. XSS AND INJECTION PROTECTION
+# =============================================================================
+injection_protection:
+  xss_protection: "strict"
+  csrf_protection: true
+  command_injection_protection: true
+  path_traversal_protection: true
+
+# =============================================================================
+# 19. DATABASE CONFIGURATION
+# Defines transaction management, connection pooling, and consistency
+# =============================================================================
+database:
+  transaction_management:
+    default_isolation_level: "READ_COMMITTED"  # READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE
+    transaction_scope: "method_level"  # method_level, service_level, manual
+    auto_commit: false
+    timeout_seconds: 30
+    deadlock_handling:
+      strategy: "retry_with_exponential_backoff"
+      max_retries: 3
+      base_delay_ms: 100
+      max_delay_ms: 5000
+    
+  connection_pool:
+    min_size: 5
+    max_size: 20
+    idle_timeout: 300
+    max_lifetime: 1800
+    validation_query: "SELECT 1"
+    test_on_borrow: true
+    test_on_return: false
+    test_while_idle: true
+    
+  consistency_requirements:
+    read_consistency: "strong"  # eventual, strong, bounded_staleness
+    write_consistency: "immediate"
+    conflict_resolution: "last_writer_wins"  # last_writer_wins, merge, manual
+    
+  data_integrity:
+    foreign_key_checks: true
+    constraint_validation: true
+    cascade_operations: "restrict"  # restrict, cascade, set_null
+    
+  backup_and_recovery:
+    point_in_time_recovery: true
+    backup_frequency: "daily"
+    retention_period_days: 30
+    incremental_backups: true
+
+# =============================================================================
+# 20. QUERY OPTIMIZATION
+# =============================================================================
+query_optimization:
+  prepared_statements: true
+  query_cache_enabled: true
+  slow_query_logging: true
+  slow_query_threshold_ms: 1000
+  explain_plan_logging: false
+  
+# =============================================================================
+# 21. DATA VERSIONING
+# =============================================================================
+data_versioning:
+  optimistic_locking: true
+  version_field: "version"
+  conflict_detection: "automatic"
+  merge_strategies:
+    - field: "confidence"
+      strategy: "max_value"
+    - field: "timestamp"
+      strategy: "latest"
+
+# =============================================================================
+# 22. ERROR RECOVERY CONFIGURATION
+# Defines circuit breakers, retry policies, and fallback mechanisms
+# =============================================================================
+error_recovery:
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    success_threshold: 3
+    timeout_seconds: 60
+    half_open_max_calls: 3
+    monitoring_window_seconds: 300
+    
+  retry_policy:
+    enabled: true
+    max_retries: 3
+    retry_on_exceptions:
+      - "ConnectionError"
+      - "TimeoutError"
+      - "TemporaryFailure"
+    backoff_strategy: "exponential_jitter"  # fixed, exponential, exponential_jitter
+    base_delay_ms: 1000
+    max_delay_ms: 30000
+    jitter_factor: 0.1
+    
+  fallback_mechanisms:
+    - condition: "market_data_unavailable"
+      action: "use_cached_features"
+      ttl_seconds: 300
+      priority: 1
+    - condition: "model_prediction_failure"
+      action: "use_simple_moving_average"
+      priority: 2
+    - condition: "database_unavailable"
+      action: "cache_in_memory"
+      priority: 3
+    - condition: "all_services_down"
+      action: "return_null_gracefully"
+      priority: 999
+      
+  graceful_degradation:
+    levels:
+      - name: "full_service"
+        description: "All systems operational"
+        required_services: ["market_data", "model", "database"]
+      - name: "reduced_service"
+        description: "Limited signal generation"
+        required_services: ["market_data", "model"]
+        limitations: "no_persistence"
+      - name: "emergency_mode"
+        description: "Basic functionality only"
+        required_services: ["market_data"]
+        limitations: "simple_signals_only"
+      - name: "maintenance_mode"
+        description: "Service unavailable"
+        required_services: []
+        response: "service_unavailable_503"
+
+# =============================================================================
+# 23. HEALTH MONITORING
+# =============================================================================
+health_monitoring:
+  checks:
+    - name: "market_data_connectivity"
+      type: "external_service"
+      endpoint: "/health"
+      timeout_ms: 5000
+      interval_seconds: 30
+      failure_threshold: 3
+      
+    - name: "database_connectivity"
+      type: "database"
+      query: "SELECT 1"
+      timeout_ms: 2000
+      interval_seconds: 60
+      failure_threshold: 2
+      
+    - name: "model_integrity"
+      type: "custom"
+      function: "validate_model_predictions"
+      interval_seconds: 300
+      failure_threshold: 1
+      
+  alerting:
+    channels: ["email", "slack", "pagerduty"]
+    escalation_rules:
+      - level: "warning"
+        delay_minutes: 5
+        channels: ["slack"]
+      - level: "critical"
+        delay_minutes: 0
+        channels: ["email", "pagerduty"]
+
+# =============================================================================
+# 24. PERFORMANCE CONFIGURATION
+# Defines caching, optimization, and performance monitoring
+# =============================================================================
+performance:
+  caching:
+    strategy: "multi_level"  # single_level, multi_level, distributed
+    levels:
+      - name: "in_memory"
+        type: "lru"
+        max_entries: 1000
+        ttl_seconds: 60
+        size_limit_mb: 256
+      - name: "redis"
+        type: "distributed"
+        host: "redis://localhost:6379"
+        ttl_seconds: 300
+        max_entries: 10000
+    
+    cache_policies:
+      features:
+        ttl: 60
+        invalidation: "time_based"
+        compression: true
+        serialization: "pickle"
+      model_predictions:
+        ttl: 30
+        invalidation: "manual"
+        compression: false
+        serialization: "json"
+        
+  batch_processing:
+    enabled: true
+    max_batch_size: 50
+    batch_timeout_ms: 5000
+    parallel_execution: true
+    max_parallel_batches: 5
+    
+  connection_optimization:
+    keep_alive: true
+    connection_reuse: true
+    max_connections_per_host: 10
+    connection_timeout: 10
+    read_timeout: 30
+    
+  memory_optimization:
+    lazy_loading: true
+    object_pooling: true
+    garbage_collection_hints: true
+    memory_profiling: true
+    large_object_threshold_mb: 50
+    
+  cpu_optimization:
+    thread_pool_size: 8
+    async_execution: true
+    cpu_intensive_tasks_offload: true
+    process_pool_for_ml: true
+
+# =============================================================================
+# 25. MONITORING AND PROFILING
+# =============================================================================
+performance_monitoring:
+  metrics:
+    - name: "request_latency"
+      type: "histogram"
+      buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0]
+    - name: "cache_hit_ratio"
+      type: "gauge"
+      update_interval: 30
+    - name: "memory_usage"
+      type: "gauge"
+      update_interval: 10
+    - name: "cpu_utilization"
+      type: "gauge"
+      update_interval: 10
+      
+  profiling:
+    enabled: true
+    sampling_rate: 0.01  # 1% of requests
+    include_call_stack: true
+    memory_profiling: true
+    
+  alerting:
+    latency_threshold_ms: 1000
+    memory_threshold_percent: 80
+    cpu_threshold_percent: 85
+    cache_miss_threshold_percent: 20
+
+# =============================================================================
+# 26. OPTIMIZATION HINTS
+# =============================================================================
+optimization_hints:
+  precomputation:
+    - feature: "commonly_used_features"
+      schedule: "every_minute"
+      cache_duration: 120
+  
+  warm_up:
+    - component: "ml_model"
+      warm_up_calls: 10
+      warm_up_data: "sample_features.json"
+      
+  resource_scheduling:
+    - task: "model_training"
+      schedule: "off_peak_hours"
+      resource_limits:
+        cpu: "50%"
+        memory: "2GB"
+
+# =============================================================================
+# 27. API CONTRACT MANAGEMENT
+# Defines interface versions, compatibility, and service discovery
+# =============================================================================
+api_contracts:
+  versioning:
+    strategy: "semantic_versioning"  # semantic_versioning, date_based, incremental
+    current_version: "1.2.0"
+    supported_versions: ["1.0.0", "1.1.0", "1.2.0"]
+    deprecation_policy:
+      notice_period_days: 90
+      support_period_days: 180
+      
+  interface_definitions:
+    market_data_client:
+      contract_version: ">=1.0.0"
+      required_methods:
+        - name: "get_features"
+          signature: "(symbol: str) -> Optional[List[float]]"
+          timeout_ms: 5000
+          retry_policy: "inherit"
+        - name: "get_features_async"
+          signature: "async (symbol: str) -> Optional[List[float]]"
+          timeout_ms: 5000
+          required_version: ">=1.1.0"
+      
+      optional_methods:
+        - name: "get_historical_data"
+          signature: "(symbol: str, days: int) -> List[Dict]"
+          fallback: "raise_not_implemented"
+          
+  compatibility:
+    backward_compatibility: true
+    breaking_change_detection: true
+    contract_validation: "runtime"  # compile_time, runtime, both
+    migration_support: true
+    
+  service_discovery:
+    enabled: true
+    registry_type: "consul"  # consul, etcd, kubernetes, manual
+    health_check_required: true
+    load_balancing: "round_robin"  # round_robin, weighted, least_connections
+    failover_strategy: "circuit_breaker"
+    
+# =============================================================================
+# 28. EXTERNAL SERVICE INTEGRATION
+# =============================================================================
+external_services:
+  - name: "market_data_service"
+    type: "http_api"
+    base_url: "${MARKET_DATA_URL}"
+    authentication:
+      type: "bearer_token"
+      token_source: "environment"
+      token_variable: "MARKET_DATA_TOKEN"
+    timeout:
+      connection_timeout: 10
+      read_timeout: 30
+    retry_policy:
+      max_retries: 3
+      backoff_strategy: "exponential"
+    circuit_breaker:
+      failure_threshold: 5
+      recovery_timeout: 60
+      
+  - name: "ml_model_service"
+    type: "grpc"
+    endpoint: "${ML_SERVICE_ENDPOINT}"
+    tls_enabled: true
+    compression: "gzip"
+    load_balancing: "round_robin"
+
+# =============================================================================
+# 29. DATA CONTRACTS
+# =============================================================================
+data_contracts:
+  trading_signal:
+    schema_version: "1.0"
+    validation: "strict"
+    fields:
+      symbol:
+        type: "string"
+        pattern: "^[A-Z]{6,8}$"
+        required: true
+      direction:
+        type: "enum"
+        values: ["BUY", "SELL", "HOLD"]
+        required: true
+      confidence:
+        type: "float"
+        min_value: 0.0
+        max_value: 1.0
+        required: true
+      timestamp:
+        type: "datetime"
+        format: "iso8601"
+        timezone: "UTC"
+        required: true
+        
+  evolution_strategy: "additive_only"  # additive_only, breaking_changes_allowed
+  validation_level: "strict"  # strict, lenient, disabled

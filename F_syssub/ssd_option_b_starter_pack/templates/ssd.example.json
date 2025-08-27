@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "system_name": "HUEY_P Trading",
+    "version": "0.1.0",
+    "doc_id": "SSD-20250826-001",
+    "created_at": "2025-08-26T15:22:43.486364Z",
+    "source_corpus": [
+      {
+        "id": "SRC-0001",
+        "uri": "docs/ops/runbook.md",
+        "kind": "doc"
+      }
+    ]
+  },
+  "sections": {
+    "4.6": {
+      "title": "Adaptive Reentry Logic",
+      "fields": [
+        {
+          "id": "4.6.reentry_profiles",
+          "name": "Reentry profiles",
+          "value": [
+            "conservative",
+            "moderate",
+            "aggressive"
+          ],
+          "confidence": 0.86,
+          "evidence": [
+            {
+              "source_id": "SRC-0001",
+              "locator": "runbook.md#l88-140",
+              "snippet_hash": "abc",
+              "excerpt": "..."
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

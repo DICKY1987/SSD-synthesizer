@@ -1,0 +1,263 @@
+//+------------------------------------------------------------------+
+//| Economic Calendar System - Comprehensive MQL4 Architecture      |
+//| Analysis and Implementation Framework                            |
+//| MQL4 Only - Hybrid Modular Procedural Programming Approach      |
+//+------------------------------------------------------------------+
+
+/*
+=============================================================================
+SYSTEM ARCHITECTURE OVERVIEW - EXACT LOGICAL PROCESSES
+=============================================================================
+
+1. DATA ACQUISITION LAYER
+-------------------------
+Import Scheduler → Downloads Monitor → File Validator → Raw Data Storage
+
+EXACT TIMING LOGIC:
+- Primary Start: Every Sunday at 12:00 PM CST
+- Retry Mechanism: Hourly attempts for 24 hours maximum
+- File Detection Patterns: ff_calendar*.csv, *calendar*thisweek*.csv
+- Validation: File freshness (today's date), size > 1KB, content structure
+
+2. DATA TRANSFORMATION PIPELINE
+------------------------------
+Raw CSV → Filter → Standardize → Enhance → Sort → Display
+
+EXACT FILTER LOGIC:
+- Impact Filtering: ONLY High (Red) and Medium (Orange) impact events
+- Exclusion Filter: CHF currency events (completely excluded)
+- Time Zone: All events standardized to CST
+- Weekend Filter: Exclude Friday 15:00 - Sunday 18:00 CST periods
+
+3. EVENT ENHANCEMENT ENGINE
+--------------------------
+Original Events → Anticipation Generator → Equity Markets → Chronological Merger
+
+ANTICIPATION EVENT ALGORITHM:
+- Default Hours Before: [1, 2, 4] (user configurable)
+- Maximum Anticipation Rows: 3 per original event
+- Naming Format: "#{Hours}H Before {Event Name} Anticipation - {Currency} - {Impact}"
+- Impact Inheritance: Uses original event's impact level (EMO-E/EMO-A)
+
+EQUITY MARKET INJECTION:
+- Tokyo Open: USD/JPY at 21:00 CST (EQT-OPEN)
+- London Open: EUR/USD at 02:00 CST (EQT-OPEN)
+- New York Open: USD pairs at 08:30 CST (EQT-OPEN)
+
+4. REAL-TIME MONITORING ENGINE
+-----------------------------
+15-Second Timer → Event Detection → Trigger Logic → Signal Generation
+
+EXACT TRIGGER TIMING:
+- Check Frequency: Every 15 seconds for precision
+- Trigger Offset: Events trigger 3 minutes BEFORE scheduled time
+- Time Window: ±30 seconds tolerance for trigger execution
+- Event Types: Economic events, anticipation events, market opens
+
+5. STRATEGY ID GENERATION SYSTEM
+--------------------------------
+Regional-Country-Impact (RCI) 5-Digit System: [R][CC][I][X]
+
+FORMAT BREAKDOWN:
+- R = Region Code (1=N.America, 2=Europe, 3=Asia-Pacific, 4=Latin America, 5=Middle East/Africa)
+- CC = Country Code within Region (01-99)
+- I = Impact Level (2=Medium, 3=High)
+- X = Checksum/Verification digit
+
+EXACT MAPPING TABLE:
+Region 1 (North America):
+- USA: 01, CAD: 02, MXN: 03
+
+Region 2 (Europe):
+- EUR: 01, GBP: 02
+
+Region 3 (Asia-Pacific):
+- JPY: 01, AUD: 02, NZD: 03, CNY: 04, KRW: 05, SGD: 06, HKD: 07, INR: 08
+
+Region 4 (Latin America):
+- BRL: 01
+
+Region 5 (Middle East/Africa):
+- ZAR: 01, TRY: 02, RUB: 03
+
+STRATEGY ID EXAMPLES:
+- 10132 = North America (1) + USA (01) + High Impact (3) + Checksum (2)
+- 20123 = Europe (2) + EUR (01) + Medium Impact (2) + Checksum (3)
+- 30137 = Asia-Pacific (3) + JPY (01) + High Impact (3) + Checksum (7)
+
+6. PERFORMANCE OSCILLATOR CALCULATION
+------------------------------------
+Historical Performance → 0-100 Value → Parameter Set Selection
+
+EXACT CALCULATION ALGORITHM:
+- Performance Period: 30 days default (configurable)
+- Base Score: 50 (neutral starting point)
+- Win Rate Impact: (WinRate - 50) * 0.6
+- Profit Factor Impact: (ProfitFactor - 1) * 20
+- Drawdown Penalty: -DrawdownPercent * 2
+- Recent Performance Weight: Last 7 days * 1.5 multiplier
+
+PARAMETER SET MAPPING:
+- 0-25: Conservative (Set 1: 0.01 lots, tight stops)
+- 26-50: Moderate (Set 2: 0.02 lots, normal stops)
+- 51-75: Aggressive (Set 3: 0.03 lots, wide stops)
+- 76-100: Maximum (Set 4: 0.04 lots, maximum risk)
+
+7. CHRONOLOGICAL ORDERING ALGORITHM
+----------------------------------
+Multi-Criteria Sorting with Conflict Resolution
+
+EXACT SORT CRITERIA:
+1. Primary: event.date ASC
+2. Secondary: event.time ASC
+3. Tertiary: event.priority DESC (EMO-E > EMO-A > EQT-OPEN > ANTICIPATION)
+4. Quaternary: event.event_type ASC (for same-time events)
+
+EVENT PRIORITY VALUES:
+- EMO-E (High Impact Economic): 100
+- EMO-A (Medium Impact Economic): 80
+- EQT-OPEN (Equity Market Open): 60
+- EQT-CLOSE (Equity Market Close): 50
+- ANTICIPATION: 20
+
+CONFLICT RESOLUTION LOGIC:
+IF (time_difference < 5_minutes) THEN
+    IF (current_event.priority > next_event.priority) THEN
+        next_event.time = current_event.time + 5_minutes
+    ELSE
+        current_event.time = next_event.time - 5_minutes
+
+8. OFFSET-BASED TRIGGER SYSTEM
+-----------------------------
+Precise Timing Control for Signal Generation
+
+OFFSET RULES:
+- EMO-E: -3 minutes (High impact events)
+- EMO-A: -2 minutes (Medium impact events)
+- EQT-OPEN: -5 minutes (Equity market opens)
+- ANTICIPATION: -1 minute (Anticipation events)
+
+TRIGGER EXECUTION LOGIC:
+current_time = GetCurrentTime_CST()
+FOR each event IN active_calendar:
+    trigger_time = event.time - event.offset_minutes
+    IF (ABS(current_time - trigger_time) <= 30_seconds) THEN
+        Execute_Strategy_Trigger(event)
+        Mark_Event_As_Triggered(event)
+
+9. SIGNAL GENERATION PROCESS
+---------------------------
+Event Trigger → Strategy ID → Performance Check → Parameter Selection → Signal Output
+
+EXACT SIGNAL DATA FORMAT:
+- symbol: Currency pair determination
+- strategy_id: 5-digit RCI code
+- buy_distance: Entry distance for buy orders
+- sell_distance: Entry distance for sell orders
+- stop_loss: Risk management level
+- take_profit: Profit target level
+- lot_size: Position size based on performance oscillator
+- expire_hours: Signal expiration (default: 24 hours)
+- trailing_stop: Dynamic stop loss activation
+- comment: Event description and strategy details
+
+10. RISK MANAGEMENT INTEGRATION
+------------------------------
+Multi-Factor Risk Assessment
+
+RISK SCORE CALCULATION:
+base_score = 50
+drawdown_4h_penalty = recent_4h_drawdown * -2
+drawdown_12h_penalty = recent_12h_drawdown * -1.5
+consecutive_loss_penalty = consecutive_losses * -5
+consecutive_win_bonus = consecutive_wins * 3
+volatility_penalty = market_volatility_index * -0.5
+equity_close_penalty = minutes_to_equity_close < 30 ? -10 : 0
+
+final_risk_score = base_score + all_adjustments (clamped 0-100)
+
+PARAMETER ADJUSTMENTS BASED ON RISK:
+- Lot Size: Reduced by (100 - risk_score) / 200
+- Stop Loss: Tightened by risk_score < 30 ? 1.5 : 1.0 multiplier
+- Entry Distance: Increased by (100 - risk_score) / 100
+- Trading Window: Blocked if risk_score < 15
+
+=============================================================================
+DATA FLOW ARCHITECTURE - EXACT SEQUENCE
+=============================================================================
+
+1. Downloads Folder (Automated/Manual Import)
+   ↓
+2. Raw Calendar Data Sheet (CSV parsing and validation)
+   ↓
+3. Processed Events Array (Impact filtering, standardization)
+   ↓
+4. Enhanced Events Array (Anticipation + equity events added)
+   ↓
+5. Chronologically Sorted Array (Time-based ordering with conflict resolution)
+   ↓
+6. Real-Time Monitoring Engine (15-second check cycle)
+   ↓
+7. Strategy Execution Engine (Trigger detection and signal generation)
+   ↓
+8. Signal Entry Sheet (MT4-ready format with all parameters)
+   ↓
+9. Trade Execution (MT4 Expert Advisor processing)
+
+=============================================================================
+USER INTERACTION POINTS
+=============================================================================
+
+CONFIGURATION CONTROLS:
+- Anticipation Hours: Slider/input for [1, 2, 4] hour settings
+- Anticipation Rows: Counter for maximum anticipation events per original event
+- Time Offset: Global adjustment for trigger timing (-3 minutes default)
+- Performance Period: Historical calculation window (30 days default)
+- Manual Import: Emergency button for immediate calendar refresh
+- Strategy Override: Disable specific event types or countries
+
+REAL-TIME MONITORING:
+- Import Status: Last import time, success/failure status
+- Next Import: Countdown to next scheduled import (Sunday 12 PM CST)
+- Event Countdown: Minutes to next triggered event
+- Strategy Execution: Active signals, pending triggers
+- Performance Oscillator: Current 0-100 value with trend indicator
+- Risk Score: Current risk assessment with color coding
+
+=============================================================================
+CRITICAL SYSTEM REQUIREMENTS
+=============================================================================
+
+DATA INTEGRITY CHECKS:
+- Duplicate Event Detection: MD5 hash comparison of event content
+- Time Zone Validation: All times must be in CST format
+- Date Validation: Events must be within next 7 days
+- Impact Level Verification: Only "High" and "Medium" allowed
+- Currency Code Validation: Exclude CHF, validate against known pairs
+
+PERFORMANCE OPTIMIZATION:
+- Array Operations: Efficient sorting algorithms for large event lists
+- Memory Management: Clear temporary arrays after processing
+- Error Recovery: Automatic retry mechanisms for failed operations
+- Background Processing: Non-blocking UI during heavy calculations
+- Configuration Persistence: Save user settings between sessions
+
+MT4 INTEGRATION POINTS:
+- Signal Entry Sheet: Direct CSV export to MT4 readable format
+- Error Logging: Comprehensive logging for debugging and monitoring
+- Real-Time Data: Live synchronization with MT4 trading environment
+- Parameter Validation: Ensure all trading parameters are within MT4 limits
+- Connection Monitoring: Verify MT4 connection before signal transmission
+
+=============================================================================
+CAPITAL PRESERVATION & RISK CONTROL FRAMEWORK
+=============================================================================
+
+This system prioritizes capital preservation through:
+1. Multi-layered risk assessment before every trade
+2. Dynamic parameter adjustment based on recent performance
+3. Conservative position sizing during drawdown periods
+4. Automatic trading suspension during high-risk conditions
+5. Event-based risk management (avoiding major announcements)
+6. Performance-based strategy selection and parameter optimization
+*/

@@ -1,0 +1,273 @@
+# GitHub Workflow: mql4_event_handlers_fixed.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 18:36:13
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 18:36:13"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  # Fixed: mql4_event_handlers.yaml
+  # Auto-generated from TXT conversion
+  # Conversion date: 2025-06-23 18:16:14
+  # Type: GitHub Actions Workflow
+
+  name: "Auto-generated Workflow"
+
+  on:
+    push:
+      branches: [ main, develop ]
+    pull_request:
+      branches: [ main ]
+
+  env:
+    CONVERSION_DATE: "2025-06-23 18:16:14"
+
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup environment
+        run: |
+          echo "Setting up environment..."
+
+      # Original workflow content
+    purpose: "Define which event handlers are fixed and which are modifiable"
+
+    special_functions:
+      init:
+        signature: "int init()"
+        purpose: "Initialize EA parameters and validate inputs"
+        modification_allowed: false
+        return_values: ["0 for success", "Non-zero for failure (prevents EA from starting)"]
+        mandatory_implementation: |
+          int init() {
+            // Parameter validation section - FIXED
+            if(StringLen(TradingPair) != 6) {
+              Print("ERROR: TradingPair must be exactly 6 characters");
+              return(1);
+            }
+
+            if(MagicNumber <= 0) {
+              Print("ERROR: MagicNumber must be positive integer");
+              return(1);
+            }
+
+            if(LotSize <= 0 || LotSize > MarketInfo(Symbol(), MODE_MAXLOT)) {
+              Print("ERROR: LotSize out of valid range");
+              return(1);
+            }
+
+            // Global variable initialization - FIXED
+            g_trading_pair_string = TradingPair;
+            g_magic_number_int = MagicNumber;
+            g_lot_size_double = LotSize;
+            g_position_open_bool = false;
+            g_last_bar_time_datetime = Time[0];
+
+            Print("EA initialized successfully for ", TradingPair);
+            return(0);
+          }
+
+      start:
+        signature: "int start()"
+        purpose: "Process each new tick - Fixed dispatcher only"
+        modification_allowed: false
+        return_values: ["0 for success"]
+        mandatory_implementation: |
+          int start() {
+            ProcessSignal(); // ONLY PERMITTED ACTION
+            return(0);
+          }
+        restrictions:
+          - "No additional logic permitted"
+          - "Only ProcessSignal() function call allowed"
+          - "No variable declarations"
+          - "No conditional statements"
+
+      deinit:
+        signature: "int deinit()"
+        purpose: "Clean up EA resources on removal"
+        modification_allowed: false
+        return_values: ["0 for success", "Non-zero values are ignored by terminal"]
+        mandatory_implementation: |
+          int deinit() {
+            int l_reason_int = UninitializeReason();
+            string l_deinit_reason_string = "";
+
+            switch(l_reason_int) {
+              case REASON_REMOVE:
+                l_deinit_reason_string = "Expert Advisor removed from chart";
+                break;
+              case REASON_RECOMPILE:
+                l_deinit_reason_string = "Expert Advisor recompiled";
+                break;
+              case REASON_CHARTCHANGE:
+                l_deinit_reason_string = "Symbol or timeframe changed on chart";
+                break;
+              case REASON_CHARTCLOSE:
+                l_deinit_reason_string = "Chart closed";
+                break;
+              case REASON_PARAMETERS:
+                l_deinit_reason_string = "Input parameters changed";
+                break;
+              case REASON_ACCOUNT:
+                l_deinit_reason_string = "Other account activated";
+                break;
+              default:
+                l_deinit_reason_string = "Unknown termination reason";
+                break;
+            }
+
+            Print("EA deinitialized: ", l_deinit_reason_string);
+            return(0);
+          }
+
+    uninitialize_reason_codes:
+      REASON_REMOVE: 1      # Expert removed from chart
+      REASON_RECOMPILE: 2   # Expert recompiled
+      REASON_CHARTCHANGE: 3 # Symbol or timeframe changed on the chart
+      REASON_CHARTCLOSE: 4  # Chart closed
+      REASON_PARAMETERS: 5  # Input parameters changed by user
+      REASON_ACCOUNT: 6     # Other account activated
+
+    modifiable_functions:
+      ProcessSignal:
+        signature: "void ProcessSignal()"
+        purpose: "Custom trading logic - ONLY modifiable function"
+        modification_allowed: true
+        mandatory_structure:
+          - "Signal file reading"
+          - "Signal validation"
+          - "Trade execution"
+          - "Response file writing"
+        example_structure: |
+          void ProcessSignal() {
+            // 1. Read signal file
+            string l_signal_data_string = ReadSignalFile();
+            if(l_signal_data_string == "") {
+              return; // No signal available
+            }
+
+            // 2. Validate signal
+            if(!ValidateSignal(l_signal_data_string)) {
+              WriteResponse("ERROR", "Invalid signal format");
+              return;
+            }
+
+            // 3. Execute trade based on signal
+            int l_ticket_int = ExecuteTrade(l_signal_data_string);
+
+            // 4. Write response
+            if(l_ticket_int > 0) {
+              WriteResponse("SUCCESS", "Order " + l_ticket_int + " executed");
+            } else {
+              WriteResponse("ERROR", "Trade execution failed");
+            }
+          }
+
+    prohibited_event_handlers:
+      OnTimer:
+        signature: "void OnTimer()"
+        reason: "Timer-based logic conflicts with controlled execution model"
+        status: "FORBIDDEN"
+
+      OnTrade:
+        signature: "void OnTrade()"
+        reason: "Trade event handling conflicts with controlled execution model"
+        status: "FORBIDDEN"
+
+      OnBookEvent:
+        signature: "void OnBookEvent(const string& symbol)"
+        reason: "Market depth events are outside framework scope"
+        status: "FORBIDDEN"
+
+      OnChartEvent:
+        signature: "void OnChartEvent(const int id, const long& lparam, const double& dparam, const string& sparam)"
+        reason: "Chart interaction events not part of automated trading framework"
+        status: "FORBIDDEN"
+
+      OnTester:
+        signature: "double OnTester()"
+        reason: "Strategy tester events handled by testing framework"
+        status: "FORBIDDEN"
+
+      OnCalculate:
+        signature: "int OnCalculate(...)"
+        reason: "Indicator calculation function not applicable to EAs"
+        status: "FORBIDDEN"
+
+    handler_verification_checklist:
+      required_handlers:
+        - "init() with fixed implementation"
+        - "start() with fixed implementation" 
+        - "deinit() with fixed implementation"
+        - "ProcessSignal() as only modifiable function"
+
+      prohibited_handlers:
+        - "OnTimer() must not exist"
+        - "OnTrade() must not exist"
+        - "OnBookEvent() must not exist"
+        - "OnChartEvent() must not exist"
+        - "OnTester() must not exist"
+        - "OnCalculate() must not exist"
+        - "Any custom event handlers must not exist"
+
+    modification_rules:
+      fixed_handlers:
+        - "init(), start(), deinit() are locked and cannot be modified"
+        - "Any attempt to modify these handlers violates framework"
+        - "Implementation must match exactly as specified"
+
+      modifiable_functions:
+        - "Only ProcessSignal() can contain custom logic"
+        - "All trading algorithms must be implemented within ProcessSignal()"
+        - "Helper functions called from ProcessSignal() are allowed"
+
+      framework_violations:
+        - "Adding logic to start() beyond ProcessSignal() call"
+        - "Modifying init() parameter validation"
+        - "Changing deinit() cleanup logic"
+        - "Implementing prohibited event handlers"
+
+    deinit_execution_limits:
+      time_limit: "2.5 seconds maximum execution time"
+      forced_termination: "Terminal will forcibly terminate if time exceeded"
+      resource_cleanup: "Must complete all cleanup within time limit"
+
+    special_function_call_order:
+      initialization: "init() called first when EA attached"
+      main_execution: "start() called on each tick after successful init()"
+      termination: "deinit() called once when EA removed or terminal closed"
+
+      - name: Complete workflow
+        run: |
+          echo "Workflow completed successfully"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

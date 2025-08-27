@@ -1,0 +1,306 @@
+# GitHub Workflow: mql4_trading_fixed.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 18:36:13
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 18:36:13"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  # Fixed: mql4_trading.yaml
+  # Auto-generated from TXT conversion
+  # Conversion date: 2025-06-23 17:54:08
+  # Type: GitHub Actions Workflow
+
+  name: "Auto-generated Workflow"
+
+  on:
+    push:
+      branches: [ main, develop ]
+    pull_request:
+      branches: [ main ]
+
+  env:
+    CONVERSION_DATE: "2025-06-23 17:54:08"
+
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup environment
+        run: |
+          echo "Setting up environment..."
+
+      # Original workflow content
+    purpose: "Standardize trading operations, validation, and error handling"
+
+    pre_order_validation:
+      trade_allowed_check: "IsTradeAllowed() must return true before any trade operation"
+      context_busy_check: "IsTradeContextBusy() must return false before trade"
+      connection_check: "IsConnected() must return true for trade operations"
+      price_normalization: "NormalizeDouble(price, Digits)"
+      stop_level_check: "MarketInfo(Symbol(), MODE_STOPLEVEL) * Point"
+      lot_size_validation: "MarketInfo(Symbol(), MODE_LOTSTEP)"
+      margin_check: "AccountFreeMarginCheck(Symbol(), order_type, lots)"
+      spread_check: "MarketInfo(Symbol(), MODE_SPREAD) * Point"
+
+    mandatory_pre_validation_sequence: |
+      bool ValidatePreOrderConditions(int order_type, double lots, double price, double stop_loss, double take_profit) {
+        // STEP 1: Check if trading is allowed
+        if(!IsTradeAllowed()) {
+          Print("ERROR: Trading not allowed at this time");
+          return(false);
+        }
+
+        // STEP 2: Check if trade context is busy
+        if(IsTradeContextBusy()) {
+          Print("ERROR: Trade context is busy");
+          return(false);
+        }
+
+        // STEP 3: Check connection to server
+        if(!IsConnected()) {
+          Print("ERROR: No connection to trade server");
+          return(false);
+        }
+
+        // STEP 4: Normalize price
+        price = NormalizeDouble(price, Digits);
+
+        // STEP 5: Validate stop levels
+        if(!ValidateStopLevels(price, stop_loss, take_profit)) {
+          Print("ERROR: Invalid stop levels");
+          return(false);
+        }
+
+        // STEP 6: Validate lot size
+        double min_lot = MarketInfo(Symbol(), MODE_MINLOT);
+        double max_lot = MarketInfo(Symbol(), MODE_MAXLOT);
+        double lot_step = MarketInfo(Symbol(), MODE_LOTSTEP);
+
+        if(lots < min_lot || lots > max_lot) {
+          Print("ERROR: Lot size outside allowed range: ", min_lot, " - ", max_lot);
+          return(false);
+        }
+
+        if(MathMod(lots, lot_step) != 0) {
+          Print("ERROR: Lot size doesn't match step increment: ", lot_step);
+          return(false);
+        }
+
+        // STEP 7: Check available margin
+        if(!AccountFreeMarginCheck(Symbol(), order_type, lots)) {
+          Print("ERROR: Insufficient margin for trade");
+          return(false);
+        }
+
+        double required_margin = AccountFreeMarginCheck(Symbol(), order_type, lots);
+        if(GetLastError() == 134) { // ERR_NOT_ENOUGH_MONEY
+          Print("ERROR: Not enough money for trade. Required: ", required_margin);
+          return(false);
+        }
+
+        return(true);
+      }
+
+    order_send_pattern: |
+      // MANDATORY: Complete pre-validation before OrderSend
+      double l_price_double = (order_type == OP_BUY) ? Ask : Bid;
+      l_price_double = NormalizePrice(l_price_double);
+
+      // MANDATORY: Validate pre-order conditions
+      if(!ValidatePreOrderConditions(order_type, lots, l_price_double, stop_loss, take_profit)) {
+        Print("Pre-order validation failed");
+        return(-1);
+      }
+
+      if(!ValidateStopLevels(l_price_double, stop_loss, take_profit)) {
+        Print("Invalid stop levels");
+        return(-1);
+      }
+
+      // Send order
+      int l_ticket_int = OrderSend(
+        Symbol(),           // symbol
+        order_type,         // operation
+        lots,              // volume
+        l_price_double,    // price
+        3,                 // slippage (hardcoded to 3 pips)
+        stop_loss,         // stop loss
+        take_profit,       // take profit
+        comment,           // comment
+        magic_number,      // magic number
+        0,                 // expiration (0 = GTC)
+        arrow_color        // color
+      );
+
+      if(l_ticket_int < 0) {
+        int l_error_int = GetLastError();
+        HandleTradeError(l_error_int);
+        return(-1);
+      }
+
+      return(l_ticket_int);
+
+    order_close_pattern: |
+      if(!OrderSelect(ticket, SELECT_BY_TICKET)) {
+        Print("OrderSelect failed: ", GetLastError());
+        return(false);
+      }
+
+      // MANDATORY: Check if trading is allowed before closing
+      if(!IsTradeAllowed()) {
+        Print("ERROR: Trading not allowed - cannot close position");
+        return(false);
+      }
+
+      // MANDATORY: Check trade context
+      if(IsTradeContextBusy()) {
+        Print("ERROR: Trade context busy - cannot close position");
+        return(false);
+      }
+
+      double l_close_price_double = (OrderType() == OP_BUY) ? Bid : Ask;
+      l_close_price_double = NormalizePrice(l_close_price_double);
+
+      bool l_result_bool = OrderClose(
+        ticket,             // ticket
+        OrderLots(),        // lots (MANDATORY: use OrderLots())
+        l_close_price_double, // price
+        3,                 // slippage (hardcoded to 3 pips)
+        arrow_color        // color
+      );
+
+      if(!l_result_bool) {
+        int l_error_int = GetLastError();
+        HandleTradeError(l_error_int);
+        return(false);
+      }
+
+      return(true);
+
+    order_modify_pattern: |
+      if(!OrderSelect(ticket, SELECT_BY_TICKET)) {
+        Print("OrderSelect failed: ", GetLastError());
+        return(false);
+      }
+
+      // MANDATORY: Check if trading is allowed before modifying
+      if(!IsTradeAllowed()) {
+        Print("ERROR: Trading not allowed - cannot modify order");
+        return(false);
+      }
+
+      // MANDATORY: Check trade context
+      if(IsTradeContextBusy()) {
+        Print("ERROR: Trade context busy - cannot modify order");
+        return(false);
+      }
+
+      double l_new_sl_double = NormalizePrice(new_stop_loss);
+      double l_new_tp_double = NormalizePrice(new_take_profit);
+
+      if(!ValidateStopLevels(OrderOpenPrice(), l_new_sl_double, l_new_tp_double)) {
+        Print("Invalid new stop levels");
+        return(false);
+      }
+
+      bool l_result_bool = OrderModify(
+        ticket,             // ticket
+        OrderOpenPrice(),   // price (unchanged for market orders)
+        l_new_sl_double,    // stop loss
+        l_new_tp_double,    // take profit
+        OrderExpiration(),  // expiration
+        arrow_color        // color
+      );
+
+      if(!l_result_bool) {
+        int l_error_int = GetLastError();
+        HandleTradeError(l_error_int);
+        return(false);
+      }
+
+      return(true);
+
+    required_validations:
+      before_order_send:
+        - "Verify trading allowed: IsTradeAllowed()"
+        - "Check trade context: IsTradeContextBusy()"
+        - "Verify connection: IsConnected()"
+        - "Validate lot size against broker limits"
+        - "Ensure sufficient margin"
+        - "Verify stop levels meet minimum distance"
+
+      before_order_close:
+        - "Verify trading allowed: IsTradeAllowed()"
+        - "Check trade context: IsTradeContextBusy()"
+        - "Verify order exists and is selected"
+        - "Check if order is already closed"
+        - "Ensure order belongs to current symbol (if applicable)"
+
+      before_order_modify:
+        - "Verify trading allowed: IsTradeAllowed()"
+        - "Check trade context: IsTradeContextBusy()"
+        - "Verify order exists and is selected"
+        - "Check if new values differ from current"
+        - "Validate new stop levels"
+
+    trading_context_functions:
+      IsTradeAllowed:
+        signature: "bool IsTradeAllowed()"
+        purpose: "Returns true if expert can execute trades"
+        usage: "MANDATORY check before any trade operation"
+
+      IsTradeContextBusy:
+        signature: "bool IsTradeContextBusy()"
+        purpose: "Returns true if trading thread is busy"
+        usage: "MANDATORY check before any trade operation"
+
+      IsConnected:
+        signature: "bool IsConnected()"
+        purpose: "Returns true if connected to trade server"
+        usage: "MANDATORY check before any trade operation"
+
+    magic_number_usage:
+      purpose: "Identify orders belonging to specific EA"
+      pattern: "Use unique magic number per EA instance"
+      validation: "Filter orders by magic number when iterating"
+      example: "if(OrderMagicNumber() == g_magic_number_int)"
+
+    slippage_handling:
+      fixed_value: "3 pips for all trade operations"
+      buy_orders: "Price may be higher than requested"
+      sell_orders: "Price may be lower than requested"
+      justification: "Hardcoded value ensures consistency across all EAs"
+
+      - name: Complete workflow
+        run: |
+          echo "Workflow completed successfully"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"

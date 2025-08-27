@@ -1,0 +1,16 @@
+# Reentry Profile Template (per symbol)
+# Save as: <SYMBOL>_reentry.csv (e.g., EURUSD_reentry.csv)
+# Columns:
+# - Action: integer 1..6 (bucket-driven action slot)
+# - Type: enum {NO_REENTRY, SAME_TRADE, REDUCE_SIZE, INCREASE_SIZE, AGGRESSIVE, REVERSE, WAIT_SIGNAL, CUSTOM}
+# - SizeMultiplier: float (lot scaling relative to base size)
+# - DelaySeconds: integer >= 0 (delay before execution)
+# - ConfidenceAdjustment: float (offset to decision confidence; optional)
+# - Parameters: free-form key=value;key=value settings (interpreted by EA/bridge; optional)
+Action,Type,SizeMultiplier,DelaySeconds,ConfidenceAdjustment,Parameters
+1,NO_REENTRY,0.0,0,0.0,
+2,SAME_TRADE,1.0,0,0.0,
+3,SAME_TRADE,1.0,0,0.0,
+4,INCREASE_SIZE,1.0,0,0.0,
+5,SAME_TRADE,1.0,0,0.0,
+6,AGGRESSIVE,1.0,0,0.0,

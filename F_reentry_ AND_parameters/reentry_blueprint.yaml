@@ -1,0 +1,622 @@
+# Reentry Multi‑Dimensional Matrix — Canonical Blueprint
+# Schema‑Version: 1.0.0
+# Generated: 2025-08-16T23:17:29
+
+$schema: sandbox:/mnt/data/reentry_blueprint.schema.json
+schema_version: "1.0.0"
+name: "Reentry Multi-Dimensional Matrix Blueprint"
+id_namespace: "REENTRY"
+source_docs:
+  - "Multi-Dimensional Matrix System - Complete Implementation.md"
+
+metadata:
+  owner: "TBD"
+  last_updated: "2025-08-16T23:17:29"
+  environments_supported: ["windows", "linux", "macos"]
+  notes: >
+    This blueprint is the single source of truth for coordinates, IDs, DB schema,
+    rule invariants, and UI requirements. Implementations (Python/MQL4/UI) must
+    validate against this document (and its schema) at build time.
+
+conventions:
+  canonical_coordinate_order: [symbol, signal_type, time_category, outcome, context, generation]
+  coordinate_key_names:
+    symbol: "symbol"
+    signal_type: "signal_type"
+    time_category: "time_category"
+    outcome: "outcome"
+    context: "context"
+    generation: "generation"
+
+  # Human‑readable and compact IDs are BOTH supported. Use one consistently per system.
+  id_format:
+    readable:
+      template: "{symbol}:{signal_type}:{time_category}:O{outcome}:{context}:G{generation}"
+      regex: "^(?P<symbol>[A-Z0-9._]{1,15}):(?P<signal_type>[A-Z_]+):(?P<time_category>[A-Z_]+):O(?P<outcome>[1-6]):(?P<context>[A-Z_]+):G(?P<generation>[0-9]+)$"
+    compact:
+      template: "SYM={symbol};T={signal_type};TM={time_category};O={outcome};C={context};G={generation}"
+      regex: "^SYM=(?P<symbol>[A-Z0-9._]{1,15});T=(?P<signal_type>[A-Z_]+);TM=(?P<time_category>[A-Z_]+);O=(?P<outcome>[1-6]);C=(?P<context>[A-Z_]+);G=(?P<generation>[0-9]+)$"
+    examples:
+      - readable:  "EURUSD:MOMENTUM:QUICK:O6:NEWS_WINDOW:G0"
+        compact:   "SYM=EURUSD;T=MOMENTUM;TM=QUICK;O=6;C=NEWS_WINDOW;G=0"
+      - readable:  "XAUUSD:ANTICIPATION:MEDIUM:O2:RANGE_BOUND:G1"
+        compact:   "SYM=XAUUSD;T=ANTICIPATION;TM=MEDIUM;O=2;C=RANGE_BOUND;G=1"
+
+enumerations:
+  # Symbols are runtime‑defined; enforce via pattern.
+  symbol:
+    pattern: "^[A-Z0-9._]{1,15}$"
+
+  signal_type:
+    allowed:
+      - MOMENTUM
+      - REVERSAL
+      - BREAKOUT
+      - ANTICIPATION
+      - ECO_HIGH      # High‑impact economic event trade
+      - ECO_MED       # Medium‑impact economic event trade
+      - SESSION       # Session‑open based
+      - RANGE         # Range/trap strategy
+      - VOLATILITY    # Vol-targeting entries
+
+  time_category:
+    allowed: [FLASH, INSTANT, QUICK, SHORT, MEDIUM, LONG, EXTENDED]
+    # Thresholds MUST be strictly increasing. Fill concrete values from your strategy spec.
+    # All values are inclusive of min and inclusive of max unless max is null (open‑ended).
+    thresholds_seconds:
+      FLASH:   {"min": 0,   "max": 5}        # example defaults — adjust to your spec
+      INSTANT: {"min": 6,   "max": 30}
+      QUICK:   {"min": 31,  "max": 180}
+      SHORT:   {"min": 181, "max": 900}
+      MEDIUM:  {"min": 901, "max": 3600}
+      LONG:    {"min": 3601,"max": 14400}
+      EXTENDED:{"min": 14401,"max": null}
+    volatility_factor:
+      FLASH: 1.30
+      INSTANT: 1.20
+      QUICK: 1.10
+      SHORT: 1.00
+      MEDIUM: 0.95
+      LONG: 0.90
+      EXTENDED: 0.85
+    weight:
+      FLASH: 3
+      INSTANT: 2.5
+      QUICK: 2
+      SHORT: 1.5
+      MEDIUM: 1
+      LONG: 0.8
+      EXTENDED: 0.6
+
+  outcome:
+    allowed: [1,2,3,4,5,6]
+    semantics:
+      "1": full_stop_loss
+      "2": loss
+      "3": breakeven
+      "4": profit
+      "5": beyond_take_profit
+      "6": exceptional_win
+
+  context:
+    allowed:
+      - NEWS_WINDOW
+      - SESSION_OPEN
+      - RANGE_BOUND
+      - HIGH_VOL
+      - LOW_VOL
+      - TRENDING
+      - REVERSAL_BIAS
+      - BREAKOUT_BIAS
+      - CONSOLIDATION
+
+  generation:
+    range: {"min": 0, "max": 3}   # default; can be raised with strong guardrails
+
+defaults:
+  max_generation: 3
+  min_sample_size_for_policy_change: 30
+  cooldown_trades_after_change: 20
+  risk_multipliers:
+    base_by_generation:
+      "0": 1.00
+      "1": 0.80
+      "2": 0.60
+      "3": 0.40
+    overrides:
+      - when: { time_category: FLASH, outcome: [5,6] }
+        multiply: 1.20
+      - when: { context: NEWS_WINDOW, outcome: [1,2] }
+        multiply: 0.00
+
+schemas:
+  matrix_cell:
+    description: "Atomic parameterization for a single canonical coordinate."
+    fields:
+      action: {"type": "enum", "allowed": ["NO_REENTRY","SAME_TRADE","REVERSE","INCREASE_SIZE"]}
+      size_multiplier: {"type": "number", "min": 0.0}
+      confidence_adjustment: {"type": "number", "min": 0.0}
+      delay_minutes: {"type": "integer", "min": 0}
+      max_attempts: {"type": "integer", "min": 0}
+      conditions: {"type": "object", "additionalProperties": true}
+      performance:
+        total_trades: {"type": "integer", "min": 0}
+        wins: {"type": "integer", "min": 0}
+        losses: {"type": "integer", "min": 0}
+        best_pnl: {"type": "number"}
+        worst_pnl: {"type": "number"}
+        avg_duration_seconds: {"type": "number", "min": 0}
+        last_updated: {"type": "string", "format": "date-time"}
+
+  combination_response:
+    description: "Final routing decision for a canonical combination."
+    fields:
+      decision: {"type": "enum", "allowed": ["REENTRY","END_TRADING"]}
+      parameter_set:
+        size_multiplier: {"type": "number", "min": 0.0}
+        confidence_adjustment: {"type": "number", "min": 0.0}
+        delay_minutes: {"type": "integer", "min": 0}
+        max_attempts: {"type": "integer", "min": 0}
+      enabled: {"type": "boolean"}
+      notes: {"type": "string"}
+
+persistence:
+  files:
+    latest_filename: "current_matrix.json"
+    versioned_pattern: "matrix_{symbol}_v{timestamp}.json"
+    windows_symlink: false
+    write_strategy: "atomic_replace"   # write to temp, fsync, rename over
+    encoding: "utf-8"
+  database:
+    engines_supported: ["sqlite", "postgres"]
+    # Vendor‑neutral logical schema; see concrete DDL below.
+    logical_tables:
+
+      symbols:
+        primary_key: ["symbol"]
+        columns:
+          symbol: {"type": "text", "nullable": false}
+          created_at: {"type": "datetime", "nullable": false, "default": "now"}
+
+      combinations:
+        primary_key: ["symbol","signal_type","time_category","outcome","context","generation"]
+        columns:
+          symbol: {"type": "text"}
+          signal_type: {"type": "text"}
+          time_category: {"type": "text"}
+          outcome: {"type": "integer"}
+          context: {"type": "text"}
+          generation: {"type": "integer"}
+          combination_id: {"type": "text", "nullable": false, "unique": true}
+          created_at: {"type": "datetime", "default": "now"}
+          updated_at: {"type": "datetime"}
+        indexes:
+          - ["combination_id"]
+          - ["symbol","updated_at"]
+
+      responses:
+        primary_key: ["combination_id"]
+        foreign_keys:
+          - {"from": ["combination_id"], "to": ["combinations.combination_id"], "on_delete": "cascade"}
+        columns:
+          combination_id: {"type": "text"}
+          decision: {"type": "text"}            # REENTRY | END_TRADING
+          size_multiplier: {"type": "real", "default": 1.0}
+          confidence_adjustment: {"type": "real", "default": 1.0}
+          delay_minutes: {"type": "integer", "default": 0}
+          max_attempts: {"type": "integer", "default": 0}
+          enabled: {"type": "boolean", "default": true}
+          version_tag: {"type": "text", "default": "v1"}
+          notes: {"type": "text"}
+          updated_at: {"type": "datetime", "default": "now"}
+
+      cells:
+        primary_key: ["combination_id"]
+        foreign_keys:
+          - {"from": ["combination_id"], "to": ["combinations.combination_id"], "on_delete": "cascade"}
+        columns:
+          combination_id: {"type": "text"}
+          action: {"type": "text"}              # NO_REENTRY | SAME_TRADE | REVERSE | INCREASE_SIZE
+          size_multiplier: {"type": "real", "default": 1.0}
+          confidence_adjustment: {"type": "real", "default": 1.0}
+          delay_minutes: {"type": "integer", "default": 0}
+          max_attempts: {"type": "integer", "default": 0}
+          performance_json: {"type": "text"}    # serialized counters
+          last_updated: {"type": "datetime", "default": "now"}
+
+      executions:
+        primary_key: ["execution_id"]
+        columns:
+          execution_id: {"type": "text"}        # UUID
+          chain_id: {"type": "text"}
+          symbol: {"type": "text"}
+          signal_type: {"type": "text"}
+          time_category: {"type": "text"}
+          outcome: {"type": "integer"}
+          context: {"type": "text"}
+          generation: {"type": "integer"}
+          combination_id: {"type": "text"}
+          action_taken: {"type": "text"}        # decision at runtime
+          size_multiplier_used: {"type": "real"}
+          confidence_used: {"type": "real"}
+          delay_minutes_used: {"type": "integer"}
+          pnl: {"type": "real"}
+          duration_seconds: {"type": "integer"}
+          started_at: {"type": "datetime"}
+          closed_at: {"type": "datetime"}
+        indexes:
+          - ["symbol","started_at"]
+          - ["combination_id","started_at"]
+          - ["chain_id"]
+
+      versions:
+        primary_key: ["version_id"]
+        columns:
+          version_id: {"type": "text"}          # UUID or tag
+          symbol: {"type": "text"}
+          created_at: {"type": "datetime", "default": "now"}
+          author: {"type": "text"}
+          notes: {"type": "text"}
+          file_path: {"type": "text"}
+          active: {"type": "boolean", "default": false}
+        indexes:
+          - ["symbol","created_at"]
+          - ["active"]
+
+    ddl:
+      sqlite: |
+        -- Enumerations are enforced via CHECK constraints in SQLite
+        CREATE TABLE IF NOT EXISTS combinations(
+          symbol TEXT NOT NULL,
+          signal_type TEXT NOT NULL,
+          time_category TEXT NOT NULL,
+          outcome INTEGER NOT NULL CHECK(outcome BETWEEN 1 AND 6),
+          context TEXT NOT NULL,
+          generation INTEGER NOT NULL CHECK(generation >= 0),
+          combination_id TEXT NOT NULL UNIQUE,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT,
+          PRIMARY KEY(symbol,signal_type,time_category,outcome,context,generation)
+        );
+        CREATE INDEX IF NOT EXISTS idx_combinations_id ON combinations(combination_id);
+        CREATE INDEX IF NOT EXISTS idx_combinations_symbol_updated ON combinations(symbol,updated_at);
+
+        CREATE TABLE IF NOT EXISTS responses(
+          combination_id TEXT PRIMARY KEY,
+          decision TEXT NOT NULL CHECK(decision IN ('REENTRY','END_TRADING')),
+          size_multiplier REAL DEFAULT 1.0,
+          confidence_adjustment REAL DEFAULT 1.0,
+          delay_minutes INTEGER DEFAULT 0,
+          max_attempts INTEGER DEFAULT 0,
+          enabled INTEGER DEFAULT 1,
+          version_tag TEXT DEFAULT 'v1',
+          notes TEXT,
+          updated_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY(combination_id) REFERENCES combinations(combination_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS cells(
+          combination_id TEXT PRIMARY KEY,
+          action TEXT NOT NULL CHECK(action IN ('NO_REENTRY','SAME_TRADE','REVERSE','INCREASE_SIZE')),
+          size_multiplier REAL DEFAULT 1.0,
+          confidence_adjustment REAL DEFAULT 1.0,
+          delay_minutes INTEGER DEFAULT 0,
+          max_attempts INTEGER DEFAULT 0,
+          performance_json TEXT,
+          last_updated TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY(combination_id) REFERENCES combinations(combination_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS executions(
+          execution_id TEXT PRIMARY KEY,
+          chain_id TEXT,
+          symbol TEXT,
+          signal_type TEXT,
+          time_category TEXT,
+          outcome INTEGER CHECK(outcome BETWEEN 1 AND 6),
+          context TEXT,
+          generation INTEGER CHECK(generation >= 0),
+          combination_id TEXT,
+          action_taken TEXT,
+          size_multiplier_used REAL,
+          confidence_used REAL,
+          delay_minutes_used INTEGER,
+          pnl REAL,
+          duration_seconds INTEGER,
+          started_at TEXT,
+          closed_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_exec_symbol_started ON executions(symbol, started_at);
+        CREATE INDEX IF NOT EXISTS idx_exec_combo_started ON executions(combination_id, started_at);
+        CREATE INDEX IF NOT EXISTS idx_exec_chain ON executions(chain_id);
+
+        CREATE TABLE IF NOT EXISTS versions(
+          version_id TEXT PRIMARY KEY,
+          symbol TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          author TEXT,
+          notes TEXT,
+          file_path TEXT,
+          active INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_versions_symbol_created ON versions(symbol, created_at);
+        CREATE INDEX IF NOT EXISTS idx_versions_active ON versions(active);
+
+      postgres: |
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'decision_enum') THEN
+            CREATE TYPE decision_enum AS ENUM ('REENTRY','END_TRADING');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'action_enum') THEN
+            CREATE TYPE action_enum AS ENUM ('NO_REENTRY','SAME_TRADE','REVERSE','INCREASE_SIZE');
+          END IF;
+        END $$;
+
+        CREATE TABLE IF NOT EXISTS combinations(
+          symbol TEXT NOT NULL,
+          signal_type TEXT NOT NULL,
+          time_category TEXT NOT NULL,
+          outcome INTEGER NOT NULL CHECK(outcome BETWEEN 1 AND 6),
+          context TEXT NOT NULL,
+          generation INTEGER NOT NULL CHECK(generation >= 0),
+          combination_id TEXT NOT NULL UNIQUE,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ,
+          PRIMARY KEY(symbol,signal_type,time_category,outcome,context,generation)
+        );
+        CREATE INDEX IF NOT EXISTS idx_combinations_id ON combinations(combination_id);
+        CREATE INDEX IF NOT EXISTS idx_combinations_symbol_updated ON combinations(symbol,updated_at);
+
+        CREATE TABLE IF NOT EXISTS responses(
+          combination_id TEXT PRIMARY KEY REFERENCES combinations(combination_id) ON DELETE CASCADE,
+          decision decision_enum NOT NULL,
+          size_multiplier REAL DEFAULT 1.0,
+          confidence_adjustment REAL DEFAULT 1.0,
+          delay_minutes INTEGER DEFAULT 0,
+          max_attempts INTEGER DEFAULT 0,
+          enabled BOOLEAN DEFAULT true,
+          version_tag TEXT DEFAULT 'v1',
+          notes TEXT,
+          updated_at TIMESTAMPTZ DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS cells(
+          combination_id TEXT PRIMARY KEY REFERENCES combinations(combination_id) ON DELETE CASCADE,
+          action action_enum NOT NULL,
+          size_multiplier REAL DEFAULT 1.0,
+          confidence_adjustment REAL DEFAULT 1.0,
+          delay_minutes INTEGER DEFAULT 0,
+          max_attempts INTEGER DEFAULT 0,
+          performance_json JSONB,
+          last_updated TIMESTAMPTZ DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS executions(
+          execution_id UUID PRIMARY KEY,
+          chain_id UUID,
+          symbol TEXT,
+          signal_type TEXT,
+          time_category TEXT,
+          outcome INTEGER CHECK(outcome BETWEEN 1 AND 6),
+          context TEXT,
+          generation INTEGER CHECK(generation >= 0),
+          combination_id TEXT REFERENCES combinations(combination_id),
+          action_taken TEXT,
+          size_multiplier_used REAL,
+          confidence_used REAL,
+          delay_minutes_used INTEGER,
+          pnl REAL,
+          duration_seconds INTEGER,
+          started_at TIMESTAMPTZ,
+          closed_at TIMESTAMPTZ
+        );
+        CREATE INDEX IF NOT EXISTS idx_exec_symbol_started ON executions(symbol, started_at);
+        CREATE INDEX IF NOT EXISTS idx_exec_combo_started ON executions(combination_id, started_at);
+        CREATE INDEX IF NOT EXISTS idx_exec_chain ON executions(chain_id);
+
+        CREATE TABLE IF NOT EXISTS versions(
+          version_id UUID PRIMARY KEY,
+          symbol TEXT,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          author TEXT,
+          notes TEXT,
+          file_path TEXT,
+          active BOOLEAN DEFAULT false
+        );
+        CREATE INDEX IF NOT EXISTS idx_versions_symbol_created ON versions(symbol, created_at);
+        CREATE INDEX IF NOT EXISTS idx_versions_active ON versions(active);
+
+rules:
+  # A minimal, explicit evaluation DSL for machine execution.
+  dsl:
+    operators:
+      - eq    # equality
+      - ne    # inequality
+      - in    # membership
+      - nin   # not in
+      - ge    # >=
+      - gt    # >
+      - le    # <=
+      - lt    # <
+      - between  # inclusive
+    composition:
+      - all_of  # logical AND
+      - any_of  # logical OR
+      - not     # logical NOT
+    lhs_fields: ["symbol","signal_type","time_category","outcome","context","generation"]
+
+  invariants:
+    - id: "INV-001"
+      priority: 100
+      description: "If outcome ∈ {1,2} and generation ≥ 1 then END_TRADING."
+      when:
+        all_of:
+          - { field: "outcome", op: "in", value: [1,2] }
+          - { field: "generation", op: "ge", value: 1 }
+      then:
+        decision: "END_TRADING"
+        parameter_overrides: { size_multiplier: 0.0, confidence_adjustment: 0.0, delay_minutes: 0, max_attempts: 0 }
+
+    - id: "INV-002"
+      priority: 90
+      description: "No reentry during NEWS_WINDOW after a loss."
+      when:
+        all_of:
+          - { field: "context", op: "eq", value: "NEWS_WINDOW" }
+          - { field: "outcome", op: "in", value: [1,2] }
+      then:
+        decision: "END_TRADING"
+
+    - id: "INV-003"
+      priority: 80
+      description: "Hard cap on generations: if generation ≥ max_generation then END_TRADING."
+      when:
+        all_of:
+          - { field: "generation", op: "ge", value: "$ref.defaults.max_generation" }
+      then:
+        decision: "END_TRADING"
+
+  default_cell_rules:
+    - id: "CELL-001"
+      priority: 70
+      description: "Momentum winners favor continuation; scale with time_category volatility_factor."
+      when:
+        all_of:
+          - { field: "signal_type", op: "eq", value: "MOMENTUM" }
+          - { field: "outcome", op: "in", value: [4,5,6] }
+      set_cell:
+        action: "SAME_TRADE"
+        size_multiplier: "$calc:1.0 * enumerations.time_category.volatility_factor[time_category]"
+        confidence_adjustment: "$calc:1.0 * enumerations.time_category.weight[time_category] / 2.0"
+        delay_minutes: 0
+        max_attempts: 1
+
+    - id: "CELL-002"
+      priority: 60
+      description: "Flash losers lean to REVERSE with small size."
+      when:
+        all_of:
+          - { field: "time_category", op: "eq", value: "FLASH" }
+          - { field: "outcome", op: "in", value: [1,2] }
+      set_cell:
+        action: "REVERSE"
+        size_multiplier: 0.50
+        confidence_adjustment: 0.75
+        delay_minutes: 0
+        max_attempts: 1
+
+    - id: "CELL-003"
+      priority: 50
+      description: "Conservative fallback."
+      when:
+        all_of: []
+      set_cell:
+        action: "NO_REENTRY"
+        size_multiplier: 0.0
+        confidence_adjustment: 0.0
+        delay_minutes: 0
+        max_attempts: 0
+
+  default_combination_rules:
+    - id: "COMB-001"
+      priority: 70
+      description: "Outcome 6 → Aggressive reentry if generation == 0."
+      when:
+        all_of:
+          - { field: "outcome", op: "eq", value: 6 }
+          - { field: "generation", op: "eq", value: 0 }
+      then:
+        decision: "REENTRY"
+        parameter_set: { size_multiplier: 1.25, confidence_adjustment: 1.10, delay_minutes: 0, max_attempts: 1 }
+
+    - id: "COMB-002"
+      priority: 60
+      description: "Outcome 4–5 → Standard continuation."
+      when:
+        all_of:
+          - { field: "outcome", op: "in", value: [4,5] }
+      then:
+        decision: "REENTRY"
+        parameter_set: { size_multiplier: 1.10, confidence_adjustment: 1.00, delay_minutes: 0, max_attempts: 1 }
+
+    - id: "COMB-003"
+      priority: 50
+      description: "Breakeven defaults to neutral stance."
+      when:
+        all_of:
+          - { field: "outcome", op: "eq", value: 3 }
+      then:
+        decision: "END_TRADING"
+        parameter_set: { size_multiplier: 0.0, confidence_adjustment: 0.0, delay_minutes: 0, max_attempts: 0 }
+
+    - id: "COMB-004"
+      priority: 40
+      description: "Losses default to stop unless explicitly overridden by higher‑priority invariants."
+      when:
+        all_of:
+          - { field: "outcome", op: "in", value: [1,2] }
+      then:
+        decision: "END_TRADING"
+
+ui_requirements:
+  navigation:
+    hierarchy: ["symbol","signal_type","time_category","outcome","context","generation"]
+    search:
+      fields: ["combination_id","symbol","signal_type"]
+      supports_substring: true
+    filters:
+      - field: "symbol"
+      - field: "signal_type"
+      - field: "time_category"
+      - field: "outcome"
+      - field: "context"
+      - field: "generation"
+      - field: "decision"
+      - field: "action"
+
+  presentation:
+    node_label_templates:
+      combination: "{id_format.readable.template}"
+    color_map:
+      decision:
+        REENTRY: "#1f77b4"
+        END_TRADING: "#d62728"
+      action:
+        NO_REENTRY: "#7f7f7f"
+        SAME_TRADE: "#2ca02c"
+        REVERSE: "#9467bd"
+        INCREASE_SIZE: "#ff7f0e"
+
+  grids:
+    combinations:
+      columns:
+        - {"field": "combination_id", "width": 320}
+        - {"field": "decision"}
+        - {"field": "action"}
+        - {"field": "size_multiplier"}
+        - {"field": "confidence_adjustment"}
+        - {"field": "delay_minutes"}
+        - {"field": "max_attempts"}
+        - {"field": "wins"}
+        - {"field": "losses"}
+        - {"field": "win_rate"}
+        - {"field": "avg_duration_seconds"}
+        - {"field": "updated_at"}
+      computed_fields:
+        win_rate: "$calc:(wins / max(1,total_trades))"
+      pagination:
+        page_size: 200
+        lazy_load: true
+
+  interactions:
+    bulk_edit:
+      enabled: true
+      scope_fields: ["symbol","signal_type","time_category","outcome","context","generation"]
+    safety:
+      require_confirmation_for:
+        - decision: "END_TRADING"    # when flipping from REENTRY
+        - action: "INCREASE_SIZE"    # when size_multiplier > 1.25
+    a_b_flags:
+      gate_policy_changes_until:
+        min_sample_size: "$ref.defaults.min_sample_size_for_policy_change"
+        cooldown_trades: "$ref.defaults.cooldown_trades_after_change"

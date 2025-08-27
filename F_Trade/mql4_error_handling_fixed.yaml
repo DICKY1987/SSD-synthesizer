@@ -1,0 +1,325 @@
+# GitHub Workflow: mql4_error_handling_fixed.yaml
+# Auto-generated from TXT conversion
+# Conversion date: 2025-06-23 18:36:13
+# Type: GitHub Actions Workflow
+
+name: "Auto-generated Workflow"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CONVERSION_DATE: "2025-06-23 18:36:13"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup environment
+      run: |
+        echo "Setting up environment..."
+        
+    # Original workflow content
+  # Fixed: mql4_error_handling.yaml
+  # Auto-generated from TXT conversion
+  # Conversion date: 2025-06-23 17:54:07
+  # Type: GitHub Actions Workflow
+
+  name: "Auto-generated Workflow"
+
+  on:
+    push:
+      branches: [ main, develop ]
+    pull_request:
+      branches: [ main ]
+
+  env:
+    CONVERSION_DATE: "2025-06-23 17:54:07"
+
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup environment
+        run: |
+          echo "Setting up environment..."
+
+      # Original workflow content
+    purpose: "Standardize all error detection, logging, and recovery"
+
+    error_categories:
+      trade_errors: [129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 145, 146, 147, 148]
+      connection_errors: [6, 7, 8, 64, 65, 128, 142, 143]
+      validation_errors: [4051, 4062, 4105, 4107, 4108, 4109, 4110, 4111]
+      file_errors: [4099, 4100, 4101, 4102, 4103, 4104]
+      array_errors: [4002, 4003, 4004]
+
+    critical_trade_errors:
+      129: "invalid price"
+      130: "invalid stops" 
+      131: "invalid trade volume"
+      132: "market is closed"
+      133: "trade is disabled"
+      134: "not enough money"
+      135: "price changed"
+      136: "off quotes"
+      137: "broker is busy"
+      138: "requote"
+      139: "order is locked"
+      140: "long positions only allowed"
+      141: "too many requests"
+      145: "modification denied because order too close to market"
+      146: "trade context is busy"
+      147: "expirations are denied by broker"
+      148: "the amount of opened and pending orders has reached the limit set by broker"
+
+    connection_errors_detailed:
+      6: "no connection with trade server"
+      7: "not enough rights"
+      8: "too frequent requests"
+      64: "account disabled"
+      65: "invalid account"
+      128: "trade timeout"
+      142: "disconnected from trade server"
+      143: "connection lost"
+
+    mandatory_error_handler:
+      signature: "int HandleTradeError(int error_code)"
+      implementation: |
+        int HandleTradeError(int error_code) {
+          string l_error_desc_string = "";
+          bool l_retry_bool = false;
+          int l_wait_ms_int = 0;
+
+          switch(error_code) {
+            case 129: // ERR_INVALID_PRICE
+              l_error_desc_string = "Invalid price";
+              RefreshRates();
+              l_retry_bool = true;
+              l_wait_ms_int = 1000;
+              break;
+
+            case 130: // ERR_INVALID_STOPS
+              l_error_desc_string = "Invalid stops";
+              l_retry_bool = false;
+              break;
+
+            case 131: // ERR_INVALID_TRADE_VOLUME
+              l_error_desc_string = "Invalid trade volume";
+              l_retry_bool = false;
+              break;
+
+            case 132: // ERR_MARKET_CLOSED
+              l_error_desc_string = "Market is closed";
+              l_retry_bool = true;
+              l_wait_ms_int = 60000; // Wait 1 minute
+              break;
+
+            case 133: // ERR_TRADE_DISABLED
+              l_error_desc_string = "Trade is disabled";
+              l_retry_bool = false;
+              break;
+
+            case 134: // ERR_NOT_ENOUGH_MONEY
+              l_error_desc_string = "Not enough money";
+              l_retry_bool = false;
+              break;
+
+            case 135: // ERR_PRICE_CHANGED
+              l_error_desc_string = "Price changed";
+              RefreshRates();
+              l_retry_bool = true;
+              l_wait_ms_int = 500;
+              break;
+
+            case 136: // ERR_OFF_QUOTES
+              l_error_desc_string = "Off quotes";
+              RefreshRates();
+              l_retry_bool = true;
+              l_wait_ms_int = 2000;
+              break;
+
+            case 137: // ERR_BROKER_BUSY
+              l_error_desc_string = "Broker is busy";
+              l_retry_bool = true;
+              l_wait_ms_int = 3000;
+              break;
+
+            case 138: // ERR_REQUOTE
+              l_error_desc_string = "Requote";
+              RefreshRates();
+              l_retry_bool = true;
+              l_wait_ms_int = 1000;
+              break;
+
+            case 139: // ERR_ORDER_LOCKED
+              l_error_desc_string = "Order is locked";
+              l_retry_bool = true;
+              l_wait_ms_int = 2000;
+              break;
+
+            case 140: // ERR_LONG_POSITIONS_ONLY_ALLOWED
+              l_error_desc_string = "Long positions only allowed";
+              l_retry_bool = false;
+              break;
+
+            case 141: // ERR_TOO_MANY_REQUESTS
+              l_error_desc_string = "Too many requests";
+              l_retry_bool = true;
+              l_wait_ms_int = 5000;
+              break;
+
+            case 145: // ERR_TRADE_MODIFY_DENIED
+              l_error_desc_string = "Modification denied because order too close to market";
+              l_retry_bool = false;
+              break;
+
+            case 146: // ERR_TRADE_CONTEXT_BUSY
+              l_error_desc_string = "Trade context is busy";
+              l_retry_bool = true;
+              l_wait_ms_int = 1000;
+              break;
+
+            case 147: // ERR_TRADE_EXPIRATION_DENIED
+              l_error_desc_string = "Expirations are denied by broker";
+              l_retry_bool = false;
+              break;
+
+            case 148: // ERR_TRADE_TOO_MANY_ORDERS
+              l_error_desc_string = "The amount of opened and pending orders has reached the limit";
+              l_retry_bool = false;
+              break;
+
+            // Connection errors
+            case 6: // ERR_NO_CONNECTION
+              l_error_desc_string = "No connection with trade server";
+              l_retry_bool = true;
+              l_wait_ms_int = 5000;
+              break;
+
+            case 7: // ERR_NOT_ENOUGH_RIGHTS
+              l_error_desc_string = "Not enough rights";
+              l_retry_bool = false;
+              break;
+
+            case 8: // ERR_TOO_FREQUENT_REQUESTS
+              l_error_desc_string = "Too frequent requests";
+              l_retry_bool = true;
+              l_wait_ms_int = 3000;
+              break;
+
+            case 64: // ERR_ACCOUNT_DISABLED
+              l_error_desc_string = "Account disabled";
+              l_retry_bool = false;
+              break;
+
+            case 65: // ERR_INVALID_ACCOUNT
+              l_error_desc_string = "Invalid account";
+              l_retry_bool = false;
+              break;
+
+            case 128: // ERR_TRADE_TIMEOUT
+              l_error_desc_string = "Trade timeout";
+              l_retry_bool = true;
+              l_wait_ms_int = 2000;
+              break;
+
+            default:
+              l_error_desc_string = "Unknown error";
+              l_retry_bool = false;
+              break;
+          }
+
+          LogError("HandleTradeError", error_code, l_error_desc_string);
+
+          if(l_retry_bool && l_wait_ms_int > 0) {
+            Sleep(l_wait_ms_int);
+            return(1); // Indicate retry possible
+          }
+
+          return(0); // No retry
+        }
+
+    retry_logic:
+      connection_errors: "Exponential backoff: 1s, 2s, 4s, 8s"
+      price_errors: "Immediate retry after RefreshRates()"
+      broker_busy: "Fixed delay: 3-5 seconds"
+      max_retries: 3
+      pattern: |
+        int l_retry_count_int = 0;
+        int l_max_retries_int = 3;
+
+        while(l_retry_count_int < l_max_retries_int) {
+          int l_ticket_int = OrderSend(...);
+
+          if(l_ticket_int >= 0) {
+            return(l_ticket_int); // Success
+          }
+
+          int l_error_int = GetLastError();
+          int l_retry_result_int = HandleTradeError(l_error_int);
+
+          if(l_retry_result_int == 0) {
+            break; // No retry recommended
+          }
+
+          l_retry_count_int++;
+        }
+
+        return(-1); // Failed after retries
+
+    logging_functions:
+      log_error:
+        signature: "void LogError(string function_name, int error_code, string description)"
+        implementation: |
+          void LogError(string function_name, int error_code, string description) {
+            string l_timestamp_string = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+            string l_message_string = "[" + l_timestamp_string + "] ERROR " + 
+                                     error_code + ": " + description + 
+                                     " in " + function_name;
+            Print(l_message_string);
+
+            // Optional: Write to file for persistent logging
+            int l_handle_int = FileOpen("error_log.txt", FILE_WRITE|FILE_READ, ' ');
+            if(l_handle_int > 0) {
+              FileSeek(l_handle_int, 0, SEEK_END);
+              FileWrite(l_handle_int, l_message_string);
+              FileClose(l_handle_int);
+            }
+          }
+
+      log_info:
+        signature: "void LogInfo(string function_name, string message)"
+        implementation: |
+          void LogInfo(string function_name, string message) {
+            if(g_debug_mode_bool) {
+              string l_timestamp_string = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+              Print("[" + l_timestamp_string + "] INFO: " + message + " in " + function_name);
+            }
+          }
+
+    error_recovery_strategies:
+      price_errors: "RefreshRates() and retry"
+      connection_errors: "Wait and retry with exponential backoff"
+      validation_errors: "Log error and abort operation"
+      insufficient_margin: "Reduce lot size or abort"
+      market_closed: "Schedule retry for market open"
+
+      - name: Complete workflow
+        run: |
+          echo "Workflow completed successfully"
+    
+    - name: Complete workflow
+      run: |
+        echo "Workflow completed successfully"
